@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Application\Import\FinalizeImportAction;
 use App\Application\Import\PlanImportAction;
+use App\Domain\Import\Events\ImportFinished;
 use App\Domain\Import\ImportStatus;
 use App\Infrastructure\Csv\CsvChunk;
 use App\Infrastructure\Csv\InvalidCsvFile;
@@ -37,7 +38,9 @@ class ProcessImportJob implements ShouldQueue
     {
         $import = Import::query()->find($this->importId);
 
-        if ($import === null || $import->status->isFinished()) {
+        // A retry of this job after its batch was dispatched must not open a second batch
+        // (two finalizations). The retry endpoint clears batch_id before queueing again.
+        if ($import === null || $import->status->isFinished() || $import->batch_id !== null) {
             return;
         }
 
@@ -72,10 +75,18 @@ class ProcessImportJob implements ShouldQueue
 
     public function failed(?Throwable $exception): void
     {
-        Import::query()->whereKey($this->importId)->update([
+        $import = Import::query()->find($this->importId);
+
+        if ($import === null) {
+            return;
+        }
+
+        $import->update([
             'status' => ImportStatus::Failed,
             'failure_reason' => $exception?->getMessage() ?? 'The import could not be processed.',
             'finished_at' => now(),
         ]);
+
+        event(new ImportFinished($import->user_id, $import->id, ImportStatus::Failed));
     }
 }

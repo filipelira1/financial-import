@@ -36,7 +36,10 @@ final readonly class DbTransactionRepository implements TransactionRepository
         foreach (array_chunk($rows, self::ROWS_PER_STATEMENT) as $batch) {
             // ON DUPLICATE KEY UPDATE with an unchanged value is a no-op that MySQL reports
             // as 0 affected rows, so the sum counts only lines that were not stored yet.
-            // (INSERT IGNORE would also hide real errors, such as a truncated value.)
+            // INSERT IGNORE would also turn real errors (truncation, CHECK, foreign key) into warnings.
+            // MySQL-specific: it ignores $uniqueBy and fires on ANY unique index, which is safe only
+            // because (import_id, line_number) is the table's single unique key. PostgreSQL's
+            // ON CONFLICT DO UPDATE would count the no-op row as affected (use DO NOTHING there).
             $inserted += $this->db->table('transactions')->upsert($batch, ['import_id', 'line_number'], ['import_id']);
         }
 

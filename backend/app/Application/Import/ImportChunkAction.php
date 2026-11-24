@@ -13,6 +13,7 @@ use App\Models\Import;
 use App\Models\ImportFailure;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Psr\Log\LoggerInterface;
 
@@ -22,6 +23,8 @@ use Psr\Log\LoggerInterface;
  */
 final readonly class ImportChunkAction
 {
+    private const int MAX_RAW_BYTES = 1000;
+
     public function __construct(
         private TransactionRowParser $parser,
         private TransactionRepository $transactions,
@@ -42,7 +45,7 @@ final readonly class ImportChunkAction
         foreach ($reader->chunk($chunk) as $row) {
             $values = $reader->combine($row->fields);
             $result = $values === null
-                ? RowRejection::columnCount(count($reader->columns()), count($row->fields))
+                ? RowRejection::columnCount(count($reader->columns()), count($row->fields), $this->spansLines($row->fields))
                 : $this->parser->parse($values);
 
             if ($result instanceof TransactionData) {
@@ -51,7 +54,7 @@ final readonly class ImportChunkAction
                 $rejected[] = [
                     'import_id' => $import->id,
                     'line_number' => $row->line,
-                    'raw' => implode($reader->delimiter(), $row->fields),
+                    'raw' => $this->excerpt(implode($reader->delimiter(), $row->fields)),
                     'errors' => json_encode($result->errors, JSON_UNESCAPED_UNICODE),
                     'created_at' => now(),
                 ];
@@ -74,9 +77,12 @@ final readonly class ImportChunkAction
             return [$inserted, $failed];
         });
 
-        // Outside the transaction: listeners only ever see committed data.
+        // After the outermost commit (even if a caller wrapped this in its own transaction):
+        // listeners only ever see committed data.
         if ($inserted > 0) {
-            $this->events->dispatch(new TransactionsImported($import->user_id, $import->id, $inserted));
+            DB::afterCommit(fn () => $this->events->dispatch(
+                new TransactionsImported($import->user_id, $import->id, $inserted)
+            ));
         }
 
         $this->logger->info('import.chunk', [
@@ -87,5 +93,26 @@ final readonly class ImportChunkAction
             'rejected' => $failed,
             'ms' => round((hrtime(true) - $startedAt) / 1e6, 1),
         ]);
+    }
+
+    /**
+     * An unclosed quote can swallow the rest of the file into one value: keep the stored
+     * copy small (the column is TEXT) and let the reason point to the line.
+     */
+    private function excerpt(string $raw): string
+    {
+        return strlen($raw) > self::MAX_RAW_BYTES ? mb_strcut($raw, 0, self::MAX_RAW_BYTES).'…' : $raw;
+    }
+
+    /** @param list<string> $fields */
+    private function spansLines(array $fields): bool
+    {
+        foreach ($fields as $field) {
+            if (str_contains($field, "\n")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

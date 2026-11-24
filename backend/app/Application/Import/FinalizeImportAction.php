@@ -6,6 +6,8 @@ use App\Domain\Import\Events\ImportFinished;
 use App\Domain\Import\ImportStatus;
 use App\Models\Import;
 use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Close an import once every chunk has run, checking that no row went missing.
@@ -44,7 +46,12 @@ final readonly class FinalizeImportAction
             'finished_at' => now(),
         ]);
 
-        $this->events->dispatch(new ImportFinished($import->user_id, $import->id, $status));
+        // The data now lives in the tables. A failed import keeps its file so it can be retried.
+        if ($status !== ImportStatus::Failed) {
+            Storage::disk(config('imports.disk'))->delete($import->stored_path);
+        }
+
+        DB::afterCommit(fn () => $this->events->dispatch(new ImportFinished($import->user_id, $import->id, $status)));
 
         return $import;
     }

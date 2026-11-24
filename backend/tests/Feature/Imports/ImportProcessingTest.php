@@ -15,6 +15,7 @@ use App\Models\Transaction;
 use Illuminate\Bus\PendingBatch;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
     config(['imports.chunk_size' => 3]);
@@ -157,4 +158,68 @@ it('finishes a failed import on retry without duplicating the rows already store
         ->and(Transaction::count())->toBe(4)
         ->and(ImportFailure::count())->toBe(7)
         ->and($import->failure_reason)->toBeNull();
+});
+
+it('reports the line of an unclosed quote instead of failing the whole import', function () {
+    // The open quote on line 3 swallows the rest of the file (~100 KB) into one value.
+    $tail = implode("\n", array_fill(0, 3000, '2026-01-07,Office supplies,4500,Despesa'));
+    $import = importFromCsv("date,description,amount,type\n2026-01-05,Salary,500000,Receita\n2026-01-06,\"Rent,150000,Despesa\n{$tail}");
+
+    ProcessImportJob::dispatch($import->id);
+
+    $failure = ImportFailure::sole();
+    expect($import->refresh()->status)->toBe(ImportStatus::CompletedWithErrors)
+        ->and($import->imported_rows)->toBe(1)
+        ->and($failure->line_number)->toBe(3)
+        ->and($failure->errors[0])->toContain('missing closing quote')
+        ->and(strlen($failure->raw))->toBeLessThanOrEqual(1003);
+});
+
+it('imports a file with a BOM, semicolons, Latin-1 text, CRLF and blank lines', function () {
+    $import = importFromCsv("\xEF\xBB\xBFdate;description;amount;type\r\n\r\n2026-01-05;Servi\xE7os prestados;500000;Receita\r\n\r\n2026-01-06;Aluguel;150000;Despesa\r\n");
+
+    ProcessImportJob::dispatch($import->id);
+
+    expect($import->refresh()->status)->toBe(ImportStatus::Completed)
+        ->and($import->total_rows)->toBe(2)
+        ->and(Transaction::query()->orderBy('line_number')->pluck('description', 'line_number')->all())
+        ->toBe([3 => 'Serviços prestados', 5 => 'Aluguel']);
+});
+
+it('deletes the uploaded file once its rows are stored', function () {
+    $import = importFromCsv(dirtyCsv());
+
+    ProcessImportJob::dispatch($import->id);
+
+    expect($import->refresh()->status)->toBe(ImportStatus::CompletedWithErrors);
+    Storage::disk(config('imports.disk'))->assertMissing($import->stored_path);
+});
+
+it('keeps the file of a failed import so it can be retried', function () {
+    $import = importFromCsv("date,description,value\n2026-01-05,Salary,500000\n");
+
+    ProcessImportJob::dispatch($import->id);
+
+    expect($import->refresh()->status)->toBe(ImportStatus::Failed);
+    Storage::disk(config('imports.disk'))->assertExists($import->stored_path);
+});
+
+it('announces an import that failed before any chunk ran', function () {
+    Event::fake([ImportFinished::class]);
+    $import = importFromCsv("date,description,value\n2026-01-05,Salary,500000\n");
+
+    ProcessImportJob::dispatch($import->id);
+
+    Event::assertDispatched(fn (ImportFinished $event) => $event->importId === $import->id && $event->status === ImportStatus::Failed);
+});
+
+it('never opens a second batch when the planning job runs again', function () {
+    Bus::fake();
+    $import = importFromCsv(dirtyCsv());
+    $job = new ProcessImportJob($import->id);
+
+    $job->handle(app(PlanImportAction::class), app(FinalizeImportAction::class));
+    $job->handle(app(PlanImportAction::class), app(FinalizeImportAction::class)); // e.g. retried after a crash
+
+    Bus::assertBatchCount(1);
 });
