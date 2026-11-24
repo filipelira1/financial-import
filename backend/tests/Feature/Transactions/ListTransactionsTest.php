@@ -59,6 +59,20 @@ it('keeps the filters in the pagination links', function () {
         ->toContain('type=expense')->toContain('per_page=5');
 });
 
+it('returns the right rows on a deep page', function () {
+    $all = Transaction::factory()->for($this->user)->count(23)->create();
+    $expected = $all->sortByDesc(fn ($t) => [$t->occurred_on->format('Y-m-d'), $t->id])->values();
+
+    $response = $this->getJson('/api/v1/transactions?per_page=5&page=5')
+        ->assertOk()
+        ->assertJsonPath('meta.current_page', 5)
+        ->assertJsonPath('meta.total', 23)
+        ->assertJsonPath('meta.from', 21)
+        ->assertJsonPath('meta.to', 23);
+
+    expect(array_column($response->json('data'), 'id'))->toBe($expected->slice(20)->pluck('id')->values()->all());
+});
+
 it('reads a page with two queries: the rows and the total', function () {
     Transaction::factory()->for($this->user)->count(30)->create();
     DB::enableQueryLog();

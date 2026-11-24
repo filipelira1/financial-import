@@ -15,6 +15,8 @@ class TransactionController extends Controller
      */
     public function index(ListTransactionsRequest $request, ListTransactionsAction $list): AnonymousResourceCollection
     {
-        return TransactionResource::collection($list->execute($request->user()->id, $request->filters()));
+        return TransactionResource::collection(
+            $list->execute($request->user()->id, $request->filters(), $request->integer('page', 1))
+        );
     }
 }
