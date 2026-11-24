@@ -70,7 +70,9 @@ return [
             'queue' => env('REDIS_QUEUE', 'default'),
             // Must stay above the worker --timeout, or a slow job could run twice.
             'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 180),
-            'block_for' => null,
+            // Idle workers wait on the list (BLPOP) and wake as soon as a job arrives,
+            // instead of polling and sleeping between empty checks.
+            'block_for' => (int) env('REDIS_QUEUE_BLOCK_FOR', 5),
             // Jobs dispatched inside a database transaction wait for the commit.
             'after_commit' => true,
         ],
