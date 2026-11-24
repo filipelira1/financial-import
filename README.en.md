@@ -13,6 +13,7 @@ progress, a cached income/expense/balance dashboard and a paginated list of tran
 | ![Dashboard with income, expenses and balance](docs/images/dashboard.jpg) | ![Progress bar of an import being processed](docs/images/import-progress.jpg) |
 
 - **Quick start:** `make up`, then open <http://localhost:8090> and sign in with `demo@example.com` / `password`.
+- **Language:** the interface opens in Portuguese; the selector at the top switches it to English (the choice is remembered in the browser).
 - **Tests:** `make test` (backend), `make test-frontend` (frontend) and `make smoke` (end to end).
 - **API docs:** <http://localhost:8090/docs/api>, or import [`docs/openapi.json`](docs/openapi.json) into Postman or Insomnia.
 
@@ -33,7 +34,7 @@ progress, a cached income/expense/balance dashboard and a paginated list of tran
 | Extra: API documentation | Scramble (generated from the code) | <http://localhost:8090/docs/api>, `docs/openapi.json` |
 | Extra: CI running the tests | [GitHub Actions](.github/workflows/ci.yml): backend, frontend, full stack | Badge above |
 | Extra: notice when processing ends | Smart polling (back-off, pauses with the tab hidden); `ImportFinished` event ready for WebSockets | `usePolling.test.ts` |
-| Extra: everything in English | Code, commits, API docs and this README (a Portuguese version is in [`README.md`](README.md)) | — |
+| Extra: everything in English | Code, commits, API docs and this README in English (a Portuguese version is in [`README.md`](README.md)); the interface and API messages in Portuguese or English ([`i18n/`](frontend/src/i18n), [`SetLocaleFromHeader`](backend/app/Http/Middleware/SetLocaleFromHeader.php)) | [`i18n.test.ts`](frontend/src/i18n/i18n.test.ts), [`LocalizationTest`](backend/tests/Feature/Http/LocalizationTest.php) |
 
 ---
 
@@ -329,7 +330,18 @@ On top of the patterns:
   file and partial rows, and can then be uploaded again.
 - **Stored files:** an uploaded file is deleted once its rows are stored.
 
-**12. One command to start.**
+**12. Interface in Portuguese and English.**
+- **Decision:** the SPA opens in Portuguese and has a language selector at the top. The texts live in a typed
+  dictionary ([`frontend/src/i18n`](frontend/src/i18n)): a missing key or a wrong parameter fails the
+  type-check, with no new dependency.
+- **API:** the SPA sends `Accept-Language`, and the `SetLocaleFromHeader` middleware answers validation, 404
+  and 409 messages in the same language (English without the header). Texts are in `backend/lang/pt_BR`.
+- **What the queue stores stays in English:** rejection and failure reasons are written once, in English, so the
+  database and logs do not depend on who uploaded. The SPA translates the known reasons when it shows them
+  ([`reasons.ts`](frontend/src/i18n/reasons.ts)).
+- **Amounts:** always Brazilian reais; only the separators follow the language.
+
+**13. One command to start.**
 - **Decision:** the `app` container installs dependencies, migrates and seeds on start, and the worker,
   scheduler and nginx wait for its healthcheck.
 - **Production:** migrations would be a release step instead of a boot step.

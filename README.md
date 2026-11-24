@@ -10,14 +10,16 @@ progresso do envio, um painel em cache com receitas, despesas e saldo, e a lista
 
 | Painel depois de importar o arquivo fornecido | Importação de 200 mil linhas em andamento |
 |---|---|
-| ![Painel com receitas, despesas e saldo](docs/images/dashboard.jpg) | ![Barra de progresso de uma importação em processamento](docs/images/import-progress.jpg) |
+| ![Painel com receitas, despesas e saldo](docs/images/dashboard.pt.jpg) | ![Barra de progresso de uma importação em processamento](docs/images/import-progress.pt.jpg) |
 
 - **Para começar:** `make up`, depois abra <http://localhost:8090> e entre com `demo@example.com` / `password`.
+- **Idioma:** a interface abre em português; o seletor no topo troca para inglês (a escolha fica guardada no navegador).
 - **Testes:** `make test` (backend), `make test-frontend` (frontend) e `make smoke` (ponta a ponta).
 - **Documentação da API:** <http://localhost:8090/docs/api>, ou importe [`docs/openapi.json`](docs/openapi.json) no Postman ou no Insomnia.
 
-> O código, os nomes, os commits e a documentação da API estão em inglês, como pede o enunciado. Este README
-> está em português; a versão em inglês é o [`README.en.md`](README.en.md).
+> O código, os nomes, os commits e a documentação da API estão em inglês, como pede o enunciado. A interface e as
+> mensagens da API seguem o idioma escolhido (português ou inglês). Este README está em português; a versão em
+> inglês é o [`README.en.md`](README.en.md).
 
 ## Requisito → onde está → prova
 
@@ -36,7 +38,7 @@ progresso do envio, um painel em cache com receitas, despesas e saldo, e a lista
 | Extra: documentação da API | Scramble (gerada a partir do código) | <http://localhost:8090/docs/api>, `docs/openapi.json` |
 | Extra: CI rodando os testes | [GitHub Actions](.github/workflows/ci.yml): backend, frontend, pilha completa | Selo no topo |
 | Extra: aviso quando o processamento termina | Polling inteligente (intervalo crescente, pausa com a aba escondida); evento `ImportFinished` pronto para WebSockets | `usePolling.test.ts` |
-| Extra: tudo em inglês | Código, commits e documentação da API (README em português e em inglês) | — |
+| Extra: tudo em inglês | Código, commits e documentação da API em inglês; interface e mensagens da API em português ou inglês ([`i18n/`](frontend/src/i18n), [`SetLocaleFromHeader`](backend/app/Http/Middleware/SetLocaleFromHeader.php)) | [`i18n.test.ts`](frontend/src/i18n/i18n.test.ts), [`LocalizationTest`](backend/tests/Feature/Http/LocalizationTest.php) |
 
 ---
 
@@ -329,7 +331,18 @@ Além dos padrões:
   descartada com o arquivo e as linhas parciais, e então pode ser enviada de novo.
 - **Arquivos enviados:** o arquivo é apagado assim que as linhas dele são gravadas.
 
-**12. Um comando para subir.**
+**12. Interface em português e em inglês.**
+- **Decisão:** a SPA abre em português e tem um seletor de idioma no topo. Os textos ficam num dicionário
+  tipado ([`frontend/src/i18n`](frontend/src/i18n)): uma chave que falta ou um parâmetro errado quebra o
+  type-check, sem dependência nova.
+- **API:** a SPA manda `Accept-Language`, e o middleware `SetLocaleFromHeader` responde validação, 404 e 409 no
+  mesmo idioma (sem o cabeçalho, inglês). Os textos ficam em `backend/lang/pt_BR`.
+- **O que a fila grava fica em inglês:** os motivos de recusa e de falha são gravados uma vez, em inglês, para
+  o banco e os logs não dependerem de quem enviou. A SPA traduz os motivos conhecidos na hora de mostrar
+  ([`reasons.ts`](frontend/src/i18n/reasons.ts)).
+- **Valores:** sempre em reais; só os separadores mudam com o idioma.
+
+**13. Um comando para subir.**
 - **Decisão:** o container `app` instala as dependências, roda as migrations e o seed ao subir, e o worker, o
   scheduler e o nginx esperam o healthcheck dele.
 - **Em produção:** as migrations seriam um passo da publicação, não da subida do container.
