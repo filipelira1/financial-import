@@ -19,10 +19,13 @@ lint: ## Check code style (Pint)
 logs: ## Follow app and worker logs
 	$(COMPOSE) logs -f app worker
 
+restart-worker: ## Reload the queue worker after code changes
+	$(COMPOSE) exec app php artisan queue:restart
+
 shell: ## Open a shell in the app container
 	$(COMPOSE) exec app bash
 
 fresh: ## Recreate the database with the demo user
 	$(COMPOSE) exec app php artisan migrate:fresh --seed --force
 
-.PHONY: help up down test lint logs shell fresh
+.PHONY: help up down test lint logs restart-worker shell fresh

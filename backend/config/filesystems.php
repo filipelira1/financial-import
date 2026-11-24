@@ -33,7 +33,8 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // Uploaded statements are private: never expose this disk over HTTP.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],
