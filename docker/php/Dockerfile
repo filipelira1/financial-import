@@ -16,7 +16,13 @@ RUN groupmod -o -g "${GID}" www-data \
     && usermod -o -u "${UID}" -g "${GID}" www-data \
     && chown -R www-data:www-data /var/www
 
+# cgi-fcgi lets the healthcheck ask PHP-FPM itself for a "pong".
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libfcgi-bin \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY php.ini /usr/local/etc/php/conf.d/zz-app.ini
+COPY fpm-healthcheck.conf /usr/local/etc/php-fpm.d/zz-healthcheck.conf
 COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint
 
 ENV COMPOSER_HOME=/tmp/composer

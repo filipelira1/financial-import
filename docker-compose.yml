@@ -22,7 +22,8 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "test", "-f", "/tmp/ready"]
+      # Ready = first-run setup finished (/tmp/ready) and PHP-FPM answers its ping.
+      test: ["CMD-SHELL", "test -f /tmp/ready && SCRIPT_NAME=/fpm-ping SCRIPT_FILENAME=/fpm-ping REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 | grep -q pong"]
       interval: 3s
       timeout: 3s
       retries: 100
@@ -51,6 +52,11 @@ services:
     image: financial-import-nginx
     ports:
       - "${APP_PORT:-8090}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     depends_on:
       app:
         condition: service_healthy
@@ -78,7 +84,7 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4-alpine
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
