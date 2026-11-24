@@ -4,8 +4,10 @@ x-php: &php
   build:
     context: ./docker/php
     args:
-      UID: ${UID:-1000}
-      GID: ${GID:-1000}
+      # Host user, so files the containers write to ./backend keep your ownership.
+      # (UID is read-only in bash, hence HOST_UID: `HOST_UID=$(id -u) HOST_GID=$(id -g) make up`.)
+      UID: ${HOST_UID:-1000}
+      GID: ${HOST_GID:-1000}
   image: financial-import-php
   volumes:
     - ./backend:/var/www/backend
