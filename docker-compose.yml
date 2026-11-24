@@ -35,12 +35,13 @@ services:
     command: >
       php artisan queue:work redis
       --queue=imports,default
-      --tries=3 --backoff=5
+      --tries=3 --backoff=5 --timeout=120
       --max-time=3600 --memory=256
     depends_on:
       app:
         condition: service_healthy
-    stop_grace_period: 30s
+    # Longer than --timeout, so a stop never kills a job halfway through.
+    stop_grace_period: 130s
 
   nginx:
     image: nginx:stable-alpine
