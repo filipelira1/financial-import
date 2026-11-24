@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend (Pint, Pest, API docs)
+    name: Backend (Pint, Pest on MySQL + Redis, API docs)
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -28,8 +28,16 @@ jobs:
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
           --health-interval=3s --health-timeout=3s --health-retries=40
+      # The dashboard tests run on the real Redis cache store (database 15).
+      redis:
+        image: redis:7.4-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=3s --health-timeout=3s --health-retries=20
     env:
       DB_HOST: 127.0.0.1
+      REDIS_HOST: 127.0.0.1
     steps:
       - uses: actions/checkout@v4
 

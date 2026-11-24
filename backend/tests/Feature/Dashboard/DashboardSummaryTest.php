@@ -9,11 +9,36 @@ use App\Infrastructure\Cache\DashboardSummaryCache;
 use App\Jobs\ProcessImportJob;
 use App\Models\Transaction;
 use App\Models\User;
+use Illuminate\Cache\RedisStore;
+use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 
+/*
+ * These tests run on the real Redis store, not the in-memory array store: the array store
+ * keeps PHP objects as they are and would hide a serialization problem (Laravel refuses to
+ * unserialize objects from the cache). Redis database 15 is reserved for tests.
+ */
 beforeEach(function () {
+    config(['cache.default' => 'redis']);
+    app()->forgetInstance('cache.store');
+    Cache::flush();
+
     $this->user = User::factory()->create();
+});
+
+it('runs on the real Redis cache store', function () {
+    expect(app(CacheRepository::class)->getStore())->toBeInstanceOf(RedisStore::class)
+        ->and(app(DashboardSummaryCache::class))->toBeInstanceOf(DashboardSummaryCache::class);
+
+    Sanctum::actingAs($this->user);
+    $this->getJson('/api/v1/dashboard/summary')->assertOk();
+
+    // What Redis holds is a plain array, rebuilt into the value object on the way out.
+    expect(Cache::get("dashboard:summary:{$this->user->id}:v0"))->toBe([
+        'income_cents' => 0, 'expense_cents' => 0, 'transaction_count' => 0,
+    ]);
 });
 
 function summaryQueries(): int
