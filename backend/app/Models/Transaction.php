@@ -3,8 +3,10 @@
 namespace App\Models;
 
 use App\Domain\Finance\TransactionType;
+use App\Observers\TransactionObserver;
 use Carbon\CarbonImmutable;
 use Database\Factories\TransactionFactory;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -19,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $amount_cents
  * @property TransactionType $type
  */
+#[ObservedBy(TransactionObserver::class)]
 class Transaction extends Model
 {
     /** @use HasFactory<TransactionFactory> */

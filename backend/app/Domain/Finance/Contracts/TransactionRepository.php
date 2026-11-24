@@ -2,6 +2,7 @@
 
 namespace App\Domain\Finance\Contracts;
 
+use App\Domain\Finance\FinancialSummary;
 use App\Domain\Finance\TransactionData;
 
 interface TransactionRepository
@@ -15,4 +16,9 @@ interface TransactionRepository
      * @return int how many rows were actually inserted
      */
     public function insertImported(int $userId, int $importId, array $transactionsByLine): int;
+
+    /**
+     * Income, expense and count of all the user's transactions, in one query.
+     */
+    public function summaryFor(int $userId): FinancialSummary;
 }

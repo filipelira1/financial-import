@@ -3,6 +3,8 @@
 namespace App\Infrastructure\Persistence;
 
 use App\Domain\Finance\Contracts\TransactionRepository;
+use App\Domain\Finance\FinancialSummary;
+use App\Domain\Finance\TransactionType;
 use Illuminate\Database\ConnectionInterface;
 
 final readonly class DbTransactionRepository implements TransactionRepository
@@ -44,5 +46,18 @@ final readonly class DbTransactionRepository implements TransactionRepository
         }
 
         return $inserted;
+    }
+
+    public function summaryFor(int $userId): FinancialSummary
+    {
+        // One pass over the covering index (user_id, type, amount_cents): EXPLAIN shows "Using index".
+        $row = $this->db->table('transactions')
+            ->where('user_id', $userId)
+            ->selectRaw('COALESCE(SUM(CASE WHEN type = ? THEN amount_cents ELSE 0 END), 0) AS income', [TransactionType::Income->value])
+            ->selectRaw('COALESCE(SUM(CASE WHEN type = ? THEN amount_cents ELSE 0 END), 0) AS expense', [TransactionType::Expense->value])
+            ->selectRaw('COUNT(*) AS total')
+            ->first();
+
+        return new FinancialSummary((int) $row->income, (int) $row->expense, (int) $row->total);
     }
 }
