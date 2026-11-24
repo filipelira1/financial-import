@@ -53,6 +53,16 @@ describe('login', function () {
         $this->postJson('/api/v1/auth/login', ['email' => 'jane@example.com', 'password' => 'secret-password'])
             ->assertTooManyRequests();
     });
+
+    it('throttles one address trying many accounts', function () {
+        foreach (range(1, 20) as $attempt) {
+            $this->postJson('/api/v1/auth/login', ['email' => "user{$attempt}@example.com", 'password' => 'guess'])
+                ->assertUnprocessable();
+        }
+
+        $this->postJson('/api/v1/auth/login', ['email' => 'jane@example.com', 'password' => 'secret-password'])
+            ->assertTooManyRequests();
+    });
 });
 
 describe('protected routes', function () {
