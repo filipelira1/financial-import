@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { api } from '@/api/endpoints'
 import { describeError } from '@/api/errors'
 import { useImportTracker } from '@/composables/useImportTracker'
@@ -23,6 +23,8 @@ const openError = ref<string | null>(null)
 const input = ref<HTMLInputElement | null>(null)
 const dragging = ref(false)
 const showFailures = ref(false)
+const statusBox = ref<HTMLElement | null>(null)
+const highlight = ref(false)
 
 async function send(file: File | undefined): Promise<void> {
   if (!file) return
@@ -40,9 +42,27 @@ async function open(id: number): Promise<void> {
     const item = await api.import(id)
     tracker.reset()
     tracker.track(item)
+    // Rejected lines are what "details" means for a finished import, so open them right away.
+    showFailures.value = item.is_finished && item.failed_rows > 0
+    await nextTick()
+    reveal()
   } catch (caught) {
     openError.value = describeError(caught)
   }
+}
+
+/** Bring the status box into view and flash it, so opening an import is visible even when it was already shown. */
+function reveal(): void {
+  const box = statusBox.value
+  if (!box) return
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  box.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
+  box.focus({ preventScroll: true })
+  highlight.value = false
+  requestAnimationFrame(() => {
+    highlight.value = true
+    window.setTimeout(() => (highlight.value = false), 1200)
+  })
 }
 
 function onDrop(event: DragEvent): void {
@@ -111,7 +131,14 @@ defineExpose({ open })
 
       <p v-if="openError" class="mt-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">{{ openError }}</p>
 
-      <div v-if="current" class="mt-4 space-y-3 rounded-lg bg-slate-50 p-4" data-test="import-status">
+      <div
+        v-if="current"
+        ref="statusBox"
+        tabindex="-1"
+        class="mt-4 space-y-3 rounded-lg p-4 outline-none transition-colors duration-700"
+        :class="highlight ? 'bg-amber-50 ring-2 ring-amber-300' : 'bg-slate-50'"
+        data-test="import-status"
+      >
         <div class="flex flex-wrap items-center justify-between gap-2">
           <p class="truncate text-sm font-medium">#{{ current.id }} · {{ current.original_name }}</p>
           <StatusBadge :status="current.status" />
