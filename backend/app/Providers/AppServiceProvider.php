@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Domain\Finance\Contracts\TransactionRepository;
+use App\Infrastructure\Persistence\DbTransactionRepository;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -12,6 +14,11 @@ use Illuminate\Support\Str;
 
 class AppServiceProvider extends ServiceProvider
 {
+    /** @var array<class-string, class-string> */
+    public array $bindings = [
+        TransactionRepository::class => DbTransactionRepository::class,
+    ];
+
     public function register(): void
     {
         //
