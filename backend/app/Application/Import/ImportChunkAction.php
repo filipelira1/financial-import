@@ -61,6 +61,8 @@ final readonly class ImportChunkAction
             }
         }
 
+        // Rows of a chunk are stored all or nothing. A deadlock with a concurrent chunk is
+        // retried right away (attempts), before the job-level retry kicks in.
         [$inserted, $failed] = $this->db->transaction(function () use ($import, $valid, $rejected) {
             $inserted = $this->transactions->insertImported($import->user_id, $import->id, $valid);
 
@@ -68,14 +70,18 @@ final readonly class ImportChunkAction
             $failed = $rejected === [] ? 0 : ImportFailure::query()->toBase()
                 ->upsert($rejected, ['import_id', 'line_number'], ['import_id']);
 
-            // Counters grow by what this run really stored, so a re-run does not inflate them.
-            Import::query()->whereKey($import->id)->incrementEach([
-                'imported_rows' => $inserted,
-                'failed_rows' => $failed,
-            ]);
-
             return [$inserted, $failed];
-        });
+        }, attempts: 3);
+
+        // Live progress counters, deliberately outside the transaction above. Inserting a
+        // child row takes a shared lock on the parent import (foreign key check); updating
+        // the parent inside the same transaction needs an exclusive lock, and two chunks
+        // committing together deadlock on that upgrade. The counters only feed the progress
+        // bar: FinalizeImportAction recounts from the tables, which are the source of truth.
+        Import::query()->whereKey($import->id)->incrementEach([
+            'imported_rows' => $inserted,
+            'failed_rows' => $failed,
+        ]);
 
         // After the outermost commit (even if a caller wrapped this in its own transaction):
         // listeners only ever see committed data.
