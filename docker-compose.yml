@@ -44,11 +44,13 @@ services:
     stop_grace_period: 130s
 
   nginx:
-    image: nginx:stable-alpine
+    # Serves the Vue SPA (built inside the image, no Node.js needed on the host) and proxies the API.
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+    image: financial-import-nginx
     ports:
       - "${APP_PORT:-8090}:80"
-    volumes:
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       app:
         condition: service_healthy
