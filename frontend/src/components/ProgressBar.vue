@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ value: number; indeterminate?: boolean; tone?: 'default' | 'success' | 'warning' | 'danger' }>()
+defineProps<{ value: number; label: string; indeterminate?: boolean; tone?: 'default' | 'success' | 'warning' | 'danger' }>()
 
 const tones = {
   default: 'bg-slate-900',
@@ -13,6 +13,7 @@ const tones = {
   <div
     class="h-2.5 w-full overflow-hidden rounded-full bg-slate-200"
     role="progressbar"
+    :aria-label="label"
     aria-valuemin="0"
     aria-valuemax="100"
     :aria-valuenow="indeterminate ? undefined : value"

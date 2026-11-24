@@ -6,7 +6,7 @@ defineProps<{ items: Transaction[]; loading?: boolean }>()
 </script>
 
 <template>
-  <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+  <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm" :aria-busy="loading">
     <table class="w-full text-left text-sm">
       <thead class="border-b border-slate-200 bg-slate-50 text-xs text-slate-500 uppercase">
         <tr>

@@ -1,6 +1,7 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { api } from '@/api/endpoints'
 import { ApiError } from '@/api/http'
+import { describeError } from '@/api/errors'
 import { usePolling } from './usePolling'
 import type { Import } from '@/types/api'
 
@@ -34,7 +35,7 @@ export function useImportTracker(onFinished: (finished: Import) => void) {
         if (caught.status === 409 && typeof caught.body.import_id === 'number') duplicateOf.value = caught.body.import_id
         if (caught.status === 429) uploadError.value = 'Too many uploads. Please wait a minute and try again.'
       } else {
-        uploadError.value = 'The upload failed. Check your connection and try again.'
+        uploadError.value = describeError(caught)
       }
     } finally {
       uploading.value = false
@@ -51,6 +52,13 @@ export function useImportTracker(onFinished: (finished: Import) => void) {
     }
   }
 
+  /** Polling gave up after repeated failures while the import was still running. */
+  const connectionLost = computed(() => !polling.running.value && polling.error.value !== null && current.value?.is_finished === false)
+
+  function resume(): void {
+    if (current.value && !current.value.is_finished) polling.start()
+  }
+
   function reset(): void {
     polling.stop()
     current.value = null
@@ -58,5 +66,5 @@ export function useImportTracker(onFinished: (finished: Import) => void) {
     duplicateOf.value = null
   }
 
-  return { current, uploading, uploadError, duplicateOf, polling: polling.running, upload, track, reset }
+  return { current, uploading, uploadError, duplicateOf, polling: polling.running, connectionLost, upload, track, resume, reset }
 }

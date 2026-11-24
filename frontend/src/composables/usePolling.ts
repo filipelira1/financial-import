@@ -72,6 +72,7 @@ export function usePolling<T>(task: () => Promise<T>, options: PollingOptions<T>
   function start(): void {
     stop()
     running.value = true
+    error.value = null
     attempt = 0
     errors = 0
     document.addEventListener('visibilitychange', onVisibilityChange)

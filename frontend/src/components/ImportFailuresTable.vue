@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { api } from '@/api/endpoints'
+import { describeError } from '@/api/errors'
 import PaginationBar from './PaginationBar.vue'
 import type { ImportFailure, Paginated } from '@/types/api'
 
@@ -8,11 +9,15 @@ const props = defineProps<{ importId: number }>()
 
 const page = ref<Paginated<ImportFailure> | null>(null)
 const loading = ref(false)
+const error = ref<string | null>(null)
 
 async function load(number = 1): Promise<void> {
   loading.value = true
+  error.value = null
   try {
     page.value = await api.importFailures(props.importId, number)
+  } catch (caught) {
+    error.value = describeError(caught)
   } finally {
     loading.value = false
   }
@@ -23,7 +28,8 @@ onMounted(() => load())
 
 <template>
   <div class="space-y-3">
-    <div class="overflow-x-auto rounded-lg border border-slate-200">
+    <p v-if="error" class="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">{{ error }}</p>
+    <div class="overflow-x-auto rounded-lg border border-slate-200" :aria-busy="loading">
       <table class="w-full text-left text-sm">
         <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
           <tr>

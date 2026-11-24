@@ -2,7 +2,7 @@
 import { reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api/endpoints'
-import { ApiError } from '@/api/http'
+import { describeError } from '@/api/errors'
 import PaginationBar from '@/components/PaginationBar.vue'
 import TransactionsTable from '@/components/TransactionsTable.vue'
 import type { Paginated, Transaction, TransactionFilters, TransactionType } from '@/types/api'
@@ -32,17 +32,22 @@ function syncForm(filters: TransactionFilters): void {
   Object.assign(form, { type: filters.type ?? '', from: filters.from ?? '', to: filters.to ?? '', per_page: filters.per_page ?? 20 })
 }
 
+/** Only the latest request may update the table: a slow earlier response must not win. */
+let latestRequest = 0
+
 async function load(): Promise<void> {
   const filters = filtersFromQuery()
   syncForm(filters)
+  const request = ++latestRequest
   loading.value = true
   error.value = null
   try {
-    result.value = await api.transactions(filters)
+    const response = await api.transactions(filters)
+    if (request === latestRequest) result.value = response
   } catch (caught) {
-    error.value = caught instanceof ApiError ? Object.values(caught.errors).flat()[0] ?? caught.message : 'Could not load transactions.'
+    if (request === latestRequest) error.value = describeError(caught)
   } finally {
-    loading.value = false
+    if (request === latestRequest) loading.value = false
   }
 }
 

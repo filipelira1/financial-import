@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { api } from '@/api/endpoints'
+import { describeError } from '@/api/errors'
 import { useImportTracker } from '@/composables/useImportTracker'
 import { formatNumber } from '@/utils/format'
 import ImportFailuresTable from './ImportFailuresTable.vue'
@@ -11,7 +12,8 @@ import type { Import } from '@/types/api'
 const emit = defineEmits<{ finished: [item: Import]; started: [item: Import] }>()
 
 const tracker = useImportTracker((finished) => emit('finished', finished))
-const { current, uploading, uploadError, duplicateOf } = tracker
+const { current, uploading, uploadError, duplicateOf, connectionLost } = tracker
+const openError = ref<string | null>(null)
 
 const input = ref<HTMLInputElement | null>(null)
 const dragging = ref(false)
@@ -28,8 +30,14 @@ async function send(file: File | undefined): Promise<void> {
 /** Show an existing import here (and follow it if it is still running). */
 async function open(id: number): Promise<void> {
   showFailures.value = false
-  tracker.reset()
-  tracker.track(await api.import(id))
+  openError.value = null
+  try {
+    const item = await api.import(id)
+    tracker.reset()
+    tracker.track(item)
+  } catch (caught) {
+    openError.value = describeError(caught)
+  }
 }
 
 function onDrop(event: DragEvent): void {
@@ -62,7 +70,7 @@ defineExpose({ open })
     </p>
 
     <label
-      class="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-4 py-8 text-center transition"
+      class="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-4 py-8 text-center transition focus-within:ring-2 focus-within:ring-slate-900 focus-within:ring-offset-2"
       :class="dragging ? 'border-slate-900 bg-slate-50' : 'border-slate-300 hover:border-slate-400'"
       @dragover.prevent="dragging = true"
       @dragleave.prevent="dragging = false"
@@ -89,12 +97,19 @@ defineExpose({ open })
         </button>
       </p>
 
+      <p v-if="openError" class="mt-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">{{ openError }}</p>
+
       <div v-if="current" class="mt-4 space-y-3 rounded-lg bg-slate-50 p-4" data-test="import-status">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <p class="truncate text-sm font-medium">#{{ current.id }} · {{ current.original_name }}</p>
           <StatusBadge :status="current.status" />
         </div>
-        <ProgressBar :value="current.progress" :indeterminate="current.status === 'pending'" :tone="tone" />
+        <ProgressBar
+          :value="current.progress"
+          :indeterminate="current.status === 'pending'"
+          :tone="tone"
+          :label="`Import #${current.id} progress`"
+        />
         <p class="tabular text-sm text-slate-600">
           <template v-if="current.total_rows === null">Waiting for a worker…</template>
           <template v-else>
@@ -104,6 +119,10 @@ defineExpose({ open })
           </template>
         </p>
         <p v-if="current.failure_reason" class="text-sm text-rose-700">{{ current.failure_reason }}</p>
+        <p v-if="connectionLost" class="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert" data-test="connection-lost">
+          Lost connection to the server, so this progress may be out of date. The import keeps running in the background.
+          <button type="button" class="ml-1 font-medium underline" @click="tracker.resume()">Resume</button>
+        </p>
         <button
           v-if="current.is_finished && current.failed_rows > 0"
           type="button"
