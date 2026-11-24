@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Domain\Finance\TransactionType;
+use Carbon\CarbonImmutable;
 use Database\Factories\TransactionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $user_id
  * @property int|null $import_id
  * @property int|null $line_number
- * @property \Carbon\CarbonImmutable $occurred_on
+ * @property CarbonImmutable $occurred_on
  * @property string $description
  * @property int $amount_cents
  * @property TransactionType $type
