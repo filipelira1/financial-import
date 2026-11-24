@@ -25,6 +25,7 @@ const dragging = ref(false)
 const showFailures = ref(false)
 const statusBox = ref<HTMLElement | null>(null)
 const highlight = ref(false)
+let highlightTimer: number | undefined
 
 async function send(file: File | undefined): Promise<void> {
   if (!file) return
@@ -58,10 +59,12 @@ function reveal(): void {
   const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
   box.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
   box.focus({ preventScroll: true })
+  // Restart the flash on every click: a timer left by a previous click must not cut this one short.
+  window.clearTimeout(highlightTimer)
   highlight.value = false
   requestAnimationFrame(() => {
     highlight.value = true
-    window.setTimeout(() => (highlight.value = false), 1200)
+    highlightTimer = window.setTimeout(() => (highlight.value = false), 1200)
   })
 }
 
