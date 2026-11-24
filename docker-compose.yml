@@ -44,6 +44,15 @@ services:
     # Longer than --timeout, so a stop never kills a job halfway through.
     stop_grace_period: 130s
 
+  scheduler:
+    <<: *php
+    environment:
+      CONTAINER_ROLE: scheduler
+    command: php artisan schedule:work
+    depends_on:
+      app:
+        condition: service_healthy
+
   nginx:
     # Serves the Vue SPA (built inside the image, no Node.js needed on the host) and proxies the API.
     build:
