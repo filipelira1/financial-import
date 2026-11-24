@@ -55,7 +55,11 @@ jobs:
         run: php artisan test
 
       - name: API docs are up to date
+        # Scramble reads the column types of the models, so it needs a migrated schema.
+        env:
+          DB_DATABASE: financial_import_test
         run: |
+          php artisan migrate --force
           php artisan scramble:export --path=/tmp/openapi.json
           diff -u ../docs/openapi.json /tmp/openapi.json
 
