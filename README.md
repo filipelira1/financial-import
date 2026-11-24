@@ -1,60 +1,65 @@
 # Financial Import
 
+[English version](README.en.md) · **Português**
+
 [![CI](https://github.com/filipelira1/financial-import/actions/workflows/ci.yml/badge.svg)](https://github.com/filipelira1/financial-import/actions/workflows/ci.yml)
 
-A CSV import and financial management system. A **Laravel 13 REST API** receives the CSV, a
-**queue** validates it and stores it in parallel chunks, and a **Vue 3 SPA** shows the upload
-progress, a cached income/expense/balance dashboard and a paginated list of transactions.
+Sistema de importação e gestão financeira a partir de CSV. Uma **API REST em Laravel 13** recebe o
+arquivo, uma **fila** valida e grava os dados em blocos paralelos, e uma **SPA em Vue 3** mostra o
+progresso do envio, um painel em cache com receitas, despesas e saldo, e a lista paginada das transações.
 
-| Dashboard after importing the provided file | An import of 200,000 rows in progress |
+| Painel depois de importar o arquivo fornecido | Importação de 200 mil linhas em andamento |
 |---|---|
-| ![Dashboard with income, expenses and balance](docs/images/dashboard.jpg) | ![Progress bar of an import being processed](docs/images/import-progress.jpg) |
+| ![Painel com receitas, despesas e saldo](docs/images/dashboard.jpg) | ![Barra de progresso de uma importação em processamento](docs/images/import-progress.jpg) |
 
-- **Quick start:** `make up`, then open <http://localhost:8090> and sign in with `demo@example.com` / `password`.
-- **Tests:** `make test` (backend), `make test-frontend` (frontend) and `make smoke` (end to end).
-- **API docs:** <http://localhost:8090/docs/api>, or import [`docs/openapi.json`](docs/openapi.json) into Postman or Insomnia.
+- **Para começar:** `make up`, depois abra <http://localhost:8090> e entre com `demo@example.com` / `password`.
+- **Testes:** `make test` (backend), `make test-frontend` (frontend) e `make smoke` (ponta a ponta).
+- **Documentação da API:** <http://localhost:8090/docs/api>, ou importe [`docs/openapi.json`](docs/openapi.json) no Postman ou no Insomnia.
 
-## Requirements → where → proof
+> O código, os nomes, os commits e a documentação da API estão em inglês, como pede o enunciado. Este README
+> está em português; a versão em inglês é o [`README.en.md`](README.en.md).
 
-| Requirement | Where | Proof |
+## Requisito → onde está → prova
+
+| Requisito | Onde está | Prova |
 |---|---|---|
-| Isolated RESTful API, Laravel 9+ | Laravel 13, [`routes/api.php`](backend/routes/api.php) under `/api/v1` | [`docs/openapi.json`](docs/openapi.json); CI checks that it matches the code |
-| API and SPA only for authenticated users | Sanctum Bearer tokens ([`AuthController`](backend/app/Http/Controllers/Api/V1/AuthController.php)); SPA route guard ([`router.ts`](frontend/src/router.ts)) | [`AuthenticationTest`](backend/tests/Feature/Auth/AuthenticationTest.php); `requires a token on every import endpoint` in [`ImportApiTest`](backend/tests/Feature/Imports/ImportApiTest.php) |
-| CSV upload, reading, validation and storage in the background | [`StartImportAction`](backend/app/Application/Import/StartImportAction.php), [`ProcessImportJob`](backend/app/Jobs/ProcessImportJob.php), [`ImportChunkJob`](backend/app/Jobs/ImportChunkJob.php), [`TransactionRowParser`](backend/app/Domain/Import/TransactionRowParser.php), [`CsvReader`](backend/app/Infrastructure/Csv/CsvReader.php) | [`ImportProcessingTest`](backend/tests/Feature/Imports/ImportProcessingTest.php) (dirty files, idempotency), [`RealFileAcceptanceTest`](backend/tests/Feature/Imports/RealFileAcceptanceTest.php) (15,000 rows, exact totals), `make smoke` |
-| Job dispatched on upload | `ProcessImportJob` on the `imports` queue, then a `Bus::batch` of chunks | `Queue::assertPushedOn` in `ImportApiTest`; `Bus::assertBatched` in `ImportProcessingTest` |
-| Cached dashboard (income, expense, balance), invalidated by events/observers | [`GetDashboardSummaryAction`](backend/app/Application/Finance/GetDashboardSummaryAction.php), [`DashboardSummaryCache`](backend/app/Infrastructure/Cache/DashboardSummaryCache.php), [`InvalidateDashboardSummary`](backend/app/Listeners/InvalidateDashboardSummary.php), [`TransactionObserver`](backend/app/Observers/TransactionObserver.php) | [`DashboardSummaryTest`](backend/tests/Feature/Dashboard/DashboardSummaryTest.php), run on the real Redis store |
-| An expense never counts as income | [`FinancialSummary`](backend/app/Domain/Finance/FinancialSummary.php) (the only balance rule), `CHECK` constraints in the [migration](backend/database/migrations/2026_11_24_100001_create_transactions_table.php) | [`FinancialSummaryTest`](backend/tests/Unit/Domain/FinancialSummaryTest.php), `never counts an expense as income` (dashboard and import), [`TransactionConstraintsTest`](backend/tests/Feature/Database/TransactionConstraintsTest.php) |
-| Vue: paginated list and upload with visual feedback | [`TransactionsView`](frontend/src/views/TransactionsView.vue), [`ImportPanel`](frontend/src/components/ImportPanel.vue), [`usePolling`](frontend/src/composables/usePolling.ts) | Vitest ([`usePolling.test.ts`](frontend/src/composables/usePolling.test.ts), [`useImportTracker.test.ts`](frontend/src/composables/useImportTracker.test.ts)); screenshots above |
-| Docker Compose: app, MySQL, Redis, worker | [`docker-compose.yml`](docker-compose.yml) (plus nginx and scheduler) | The CI `stack` job starts it from scratch and imports the real file |
-| Tests with Pest or PHPUnit | Pest 5 (backend), Vitest (frontend) | `make test`, `make test-frontend`, [CI](.github/workflows/ci.yml) |
-| Extra: DDD, SOLID, Actions/Services/Repositories, thin controllers | `app/Domain`, `app/Application`, `app/Infrastructure` ([Architecture](#architecture)) | [`ArchitectureTest`](backend/tests/Unit/ArchitectureTest.php) |
-| Extra: API documentation | Scramble (generated from the code) | <http://localhost:8090/docs/api>, `docs/openapi.json` |
-| Extra: CI running the tests | [GitHub Actions](.github/workflows/ci.yml): backend, frontend, full stack | Badge above |
-| Extra: notice when processing ends | Smart polling (back-off, pauses with the tab hidden); `ImportFinished` event ready for WebSockets | `usePolling.test.ts` |
-| Extra: everything in English | Code, commits, README, API docs | — |
+| API RESTful isolada, Laravel 9+ | Laravel 13, [`routes/api.php`](backend/routes/api.php) em `/api/v1` | [`docs/openapi.json`](docs/openapi.json); a CI confere que ele bate com o código |
+| API e SPA só para usuários autenticados | Token Bearer do Sanctum ([`AuthController`](backend/app/Http/Controllers/Api/V1/AuthController.php)); guarda de rota na SPA ([`router.ts`](frontend/src/router.ts)) | [`AuthenticationTest`](backend/tests/Feature/Auth/AuthenticationTest.php); `requires a token on every import endpoint` em [`ImportApiTest`](backend/tests/Feature/Imports/ImportApiTest.php) |
+| Envio do CSV, leitura, validação e gravação em segundo plano | [`StartImportAction`](backend/app/Application/Import/StartImportAction.php), [`ProcessImportJob`](backend/app/Jobs/ProcessImportJob.php), [`ImportChunkJob`](backend/app/Jobs/ImportChunkJob.php), [`TransactionRowParser`](backend/app/Domain/Import/TransactionRowParser.php), [`CsvReader`](backend/app/Infrastructure/Csv/CsvReader.php) | [`ImportProcessingTest`](backend/tests/Feature/Imports/ImportProcessingTest.php) (arquivos sujos, idempotência), [`RealFileAcceptanceTest`](backend/tests/Feature/Imports/RealFileAcceptanceTest.php) (15 mil linhas, totais exatos), `make smoke` |
+| Job despachado no envio | `ProcessImportJob` na fila `imports`, depois um `Bus::batch` de blocos | `Queue::assertPushedOn` em `ImportApiTest`; `Bus::assertBatched` em `ImportProcessingTest` |
+| Painel em cache (receitas, despesas, saldo), invalidado por eventos/observers | [`GetDashboardSummaryAction`](backend/app/Application/Finance/GetDashboardSummaryAction.php), [`DashboardSummaryCache`](backend/app/Infrastructure/Cache/DashboardSummaryCache.php), [`InvalidateDashboardSummary`](backend/app/Listeners/InvalidateDashboardSummary.php), [`TransactionObserver`](backend/app/Observers/TransactionObserver.php) | [`DashboardSummaryTest`](backend/tests/Feature/Dashboard/DashboardSummaryTest.php), rodando no Redis de verdade |
+| Despesa nunca soma como receita | [`FinancialSummary`](backend/app/Domain/Finance/FinancialSummary.php) (a única regra de saldo), restrições `CHECK` na [migration](backend/database/migrations/2026_11_24_100001_create_transactions_table.php) | [`FinancialSummaryTest`](backend/tests/Unit/Domain/FinancialSummaryTest.php), `never counts an expense as income` (painel e importação), [`TransactionConstraintsTest`](backend/tests/Feature/Database/TransactionConstraintsTest.php) |
+| Vue: lista paginada e envio com retorno visual | [`TransactionsView`](frontend/src/views/TransactionsView.vue), [`ImportPanel`](frontend/src/components/ImportPanel.vue), [`usePolling`](frontend/src/composables/usePolling.ts) | Vitest ([`usePolling.test.ts`](frontend/src/composables/usePolling.test.ts), [`useImportTracker.test.ts`](frontend/src/composables/useImportTracker.test.ts)); capturas acima |
+| Docker Compose: app, MySQL, Redis, worker | [`docker-compose.yml`](docker-compose.yml) (mais nginx e scheduler) | O job `stack` da CI sobe tudo do zero e importa o arquivo real |
+| Testes com Pest ou PHPUnit | Pest 5 (backend), Vitest (frontend) | `make test`, `make test-frontend`, [CI](.github/workflows/ci.yml) |
+| Extra: DDD, SOLID, Actions/Services/Repositories, controllers finos | `app/Domain`, `app/Application`, `app/Infrastructure` ([Arquitetura](#arquitetura)) | [`ArchitectureTest`](backend/tests/Unit/ArchitectureTest.php) |
+| Extra: documentação da API | Scramble (gerada a partir do código) | <http://localhost:8090/docs/api>, `docs/openapi.json` |
+| Extra: CI rodando os testes | [GitHub Actions](.github/workflows/ci.yml): backend, frontend, pilha completa | Selo no topo |
+| Extra: aviso quando o processamento termina | Polling inteligente (intervalo crescente, pausa com a aba escondida); evento `ImportFinished` pronto para WebSockets | `usePolling.test.ts` |
+| Extra: tudo em inglês | Código, commits e documentação da API (README em português e em inglês) | — |
 
 ---
 
-## Contents
+## Sumário
 
-1. [Quick start](#quick-start)
-2. [Running the tests](#running-the-tests)
-3. [What runs where](#what-runs-where)
+1. [Como subir](#como-subir)
+2. [Como rodar os testes](#como-rodar-os-testes)
+3. [O que roda em cada serviço](#o-que-roda-em-cada-serviço)
 4. [API](#api)
-5. [How an import works](#how-an-import-works)
-6. [Import rules](#import-rules)
-7. [Architecture](#architecture)
-8. [Design patterns](#design-patterns)
-9. [Design decisions](#design-decisions)
-10. [Measured performance](#measured-performance)
-11. [Limitations and next steps](#limitations-and-next-steps)
-12. [Troubleshooting](#troubleshooting)
+5. [Como uma importação funciona](#como-uma-importação-funciona)
+6. [Regras da importação](#regras-da-importação)
+7. [Arquitetura](#arquitetura)
+8. [Padrões de projeto](#padrões-de-projeto)
+9. [Decisões técnicas](#decisões-técnicas)
+10. [Desempenho medido](#desempenho-medido)
+11. [Limites e próximos passos](#limites-e-próximos-passos)
+12. [Problemas comuns](#problemas-comuns)
 
 ---
 
-## Quick start
+## Como subir
 
-**Requirements:** Docker with Compose v2. `make` is optional. Ports **8090** and **127.0.0.1:33070** must be free.
+**Pré-requisitos:** Docker com Compose v2. O `make` é opcional. As portas **8090** e **127.0.0.1:33070** precisam estar livres.
 
 ```bash
 git clone https://github.com/filipelira1/financial-import.git
@@ -62,72 +67,72 @@ cd financial-import
 make up
 ```
 
-Without `make`:
+Sem `make`:
 
 ```bash
 HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up -d --build --wait
 ```
 
-The first start builds the images, installs the PHP dependencies, runs the migrations and creates
-the demo user. That took **2 min 41 s** on a clean GitHub runner; later starts take seconds. Then:
+A primeira subida gera as imagens, instala as dependências do PHP, roda as migrations e cria o usuário de
+demonstração. Levou **2 min 41 s** numa máquina limpa da CI do GitHub; as próximas levam segundos. Depois:
 
-1. Open <http://localhost:8090> and sign in with **`demo@example.com` / `password`**.
-2. Drop [`backend/tests/fixtures/financial_transactions.csv`](backend/tests/fixtures/financial_transactions.csv)
-   (the file provided with the assignment) on the upload area.
-3. Watch the progress bar. The dashboard should end at **income R$ 36.119.609,74**,
-   **expenses R$ 26.709.545,74** and **balance R$ 9.410.064,00** (15,000 transactions).
+1. Abra <http://localhost:8090> e entre com **`demo@example.com` / `password`**.
+2. Arraste [`backend/tests/fixtures/financial_transactions.csv`](backend/tests/fixtures/financial_transactions.csv)
+   (o arquivo fornecido no enunciado) para a área de envio.
+3. Acompanhe a barra de progresso. O painel deve terminar em **receitas R$ 36.119.609,74**,
+   **despesas R$ 26.709.545,74** e **saldo R$ 9.410.064,00** (15.000 transações).
 
-`make help` lists every shortcut. `make down` stops the stack. `make fresh` empties the database
-(keeping the demo user).
+`make help` lista todos os atalhos. `make down` para a pilha. `make fresh` esvazia o banco (mantendo o
+usuário de demonstração).
 
-## Running the tests
+## Como rodar os testes
 
-| Command | What it runs |
+| Comando | O que roda |
 |---|---|
-| `make test` | **Backend:** Pest on MySQL 8.4 (a separate `financial_import_test` schema), with the dashboard tests on the real Redis store (database 15): unit, feature, an acceptance test with the real 15,000-row file, and architecture tests. |
-| `make test-frontend` | **Frontend:** type-check and Vitest, in a throwaway Node container (no Node.js needed on the host). With Node 22 installed: `cd frontend && npm ci && npm test`. |
-| `make smoke` | **End to end, against the running stack:** signs in, imports the provided CSV through the API, waits for the queue and compares the dashboard with the expected totals. |
-| `make lint` | Pint (code style). |
+| `make test` | **Backend:** Pest no MySQL 8.4 (schema separado `financial_import_test`), com os testes do painel no Redis de verdade (banco 15): unidade, feature, um teste de aceitação com o arquivo real de 15 mil linhas e testes de arquitetura. |
+| `make test-frontend` | **Frontend:** type-check e Vitest, num container Node descartável (não precisa de Node.js na máquina). Com Node 22 instalado: `cd frontend && npm ci && npm test`. |
+| `make smoke` | **Ponta a ponta, contra a pilha no ar:** entra, importa o CSV fornecido pela API, espera a fila e compara o painel com os totais esperados. |
+| `make lint` | Pint (estilo do código). |
 
-The same checks run in [GitHub Actions](.github/workflows/ci.yml) on every push:
-- **backend:** Pint, Pest on MySQL and Redis services, and a check that `docs/openapi.json` matches the code;
-- **frontend:** type-check, Vitest and the production build;
-- **stack:** `docker compose up` exactly as above, followed by the smoke test.
+As mesmas conferências rodam no [GitHub Actions](.github/workflows/ci.yml) a cada push:
+- **backend:** Pint, Pest com MySQL e Redis de serviço, e a conferência de que o `docs/openapi.json` bate com o código;
+- **frontend:** type-check, Vitest e o build de produção;
+- **stack:** `docker compose up` exatamente como acima, seguido do teste ponta a ponta.
 
-## What runs where
+## O que roda em cada serviço
 
-| Service | Role |
+| Serviço | Papel |
 |---|---|
-| `nginx` | Serves the Vue SPA (built inside the image) and proxies `/api`, `/docs` and `/up` to PHP. Port **8090**. |
-| `app` | PHP-FPM 8.4 with Laravel 13. On start it installs dependencies, migrates and seeds; its healthcheck pings PHP-FPM itself. |
-| `worker` | `queue:work` on Redis (`imports` queue first). Scale it with `docker compose up -d --scale worker=3`. |
-| `scheduler` | `schedule:work`: prunes expired tokens, recovers stuck imports, discards failed imports that were never retried. |
-| `mysql` | MySQL 8.4 (data and test schema). Exposed only on `127.0.0.1:33070`. |
-| `redis` | Redis 7.4: queue, cache, rate limits and locks. Not exposed. |
+| `nginx` | Entrega a SPA em Vue (gerada dentro da imagem) e repassa `/api`, `/docs` e `/up` ao PHP. Porta **8090**. |
+| `app` | PHP-FPM 8.4 com Laravel 13. Ao subir, instala dependências, roda migrations e seed; o healthcheck consulta o próprio PHP-FPM. |
+| `worker` | `queue:work` no Redis (fila `imports` primeiro). Para escalar: `docker compose up -d --scale worker=3`. |
+| `scheduler` | `schedule:work`: apaga tokens vencidos, recupera importações travadas e descarta importações falhas que nunca foram repetidas. |
+| `mysql` | MySQL 8.4 (dados e schema de teste). Exposto só em `127.0.0.1:33070`. |
+| `redis` | Redis 7.4: fila, cache, limites de tentativa e travas. Não exposto. |
 
 ## API
 
-All endpoints live under `/api/v1`, return JSON and, except login, need `Authorization: Bearer <token>`.
-- **Interactive docs**, generated from the code by Scramble: **<http://localhost:8090/docs/api>**. The page
-  is only served when `APP_ENV=local`, the default in `.env.example`.
-- **The same OpenAPI document** is in [`docs/openapi.json`](docs/openapi.json), ready to import into Postman
-  or Insomnia. `make docs` regenerates it.
+Todas as rotas ficam em `/api/v1`, respondem JSON e, exceto o login, exigem `Authorization: Bearer <token>`.
+- **Documentação interativa**, gerada do código pelo Scramble: **<http://localhost:8090/docs/api>**. A página
+  só abre com `APP_ENV=local`, o padrão do `.env.example`.
+- **O mesmo documento OpenAPI** está em [`docs/openapi.json`](docs/openapi.json), pronto para importar no
+  Postman ou no Insomnia. `make docs` gera de novo.
 
-| Method | Path | Description |
+| Método | Caminho | Descrição |
 |---|---|---|
-| `POST` | `/auth/login` | E-mail and password in exchange for a token (expires in 8 h). Throttled per account and per IP. |
-| `POST` | `/auth/logout` | Revokes the current token. |
-| `GET` | `/auth/me` | The authenticated user. |
-| `POST` | `/imports` | Uploads a CSV (`multipart/form-data`, field `file`). Answers **202** at once with the import; **409** if the same file was already uploaded; **422** for a wrong file or header. |
-| `GET` | `/imports` | The user's imports, newest first. |
-| `GET` | `/imports/{id}` | Status and progress (`progress` 0–100, `is_finished`), for polling. |
-| `GET` | `/imports/{id}/failures` | Rejected lines: line number, content and reasons. |
-| `POST` | `/imports/{id}/retry` | Runs a failed import again (**409** if it did not fail). Rows already stored are not duplicated. |
-| `GET` | `/dashboard/summary` | `income_cents`, `expense_cents`, `balance_cents`, `transaction_count` (cached). |
-| `GET` | `/transactions` | Paginated list, newest first. Filters: `type`, `from`, `to` (`YYYY-MM-DD`), `per_page` (5–100), `page`. |
+| `POST` | `/auth/login` | E-mail e senha em troca de um token (vence em 8 h). Limite de tentativas por conta e por IP. |
+| `POST` | `/auth/logout` | Revoga o token atual. |
+| `GET` | `/auth/me` | O usuário autenticado. |
+| `POST` | `/imports` | Envia um CSV (`multipart/form-data`, campo `file`). Responde **202** na hora com a importação; **409** se o mesmo arquivo já foi enviado; **422** para arquivo ou cabeçalho errado. |
+| `GET` | `/imports` | As importações do usuário, da mais nova para a mais antiga. |
+| `GET` | `/imports/{id}` | Situação e progresso (`progress` de 0 a 100, `is_finished`), para o polling. |
+| `GET` | `/imports/{id}/failures` | Linhas recusadas: número da linha, conteúdo e motivos. |
+| `POST` | `/imports/{id}/retry` | Roda de novo uma importação que falhou (**409** se ela não falhou). Linhas já gravadas não duplicam. |
+| `GET` | `/dashboard/summary` | `income_cents`, `expense_cents`, `balance_cents`, `transaction_count` (em cache). |
+| `GET` | `/transactions` | Lista paginada, da mais nova para a mais antiga. Filtros: `type`, `from`, `to` (`YYYY-MM-DD`), `per_page` (5 a 100), `page`. |
 
-Another user's import answers **404**, exactly like one that does not exist. **Amounts are integer
-cents** (`115346` = R$ 1.153,46).
+A importação de outro usuário responde **404**, igual a uma que não existe. **Valores são centavos
+inteiros** (`115346` = R$ 1.153,46).
 
 ```bash
 TOKEN=$(curl -s -X POST localhost:8090/api/v1/auth/login -H 'Content-Type: application/json' \
@@ -138,253 +143,251 @@ curl -s -X POST localhost:8090/api/v1/imports -H "Authorization: Bearer $TOKEN" 
 curl -s localhost:8090/api/v1/dashboard/summary -H "Authorization: Bearer $TOKEN"
 ```
 
-## How an import works
+## Como uma importação funciona
 
 ```mermaid
 sequenceDiagram
-    participant SPA as Vue SPA
-    participant API as Laravel API
-    participant Q as Redis queue
+    participant SPA as SPA Vue
+    participant API as API Laravel
+    participant Q as Fila Redis
     participant W as Workers
     participant DB as MySQL
 
     SPA->>API: POST /imports (CSV)
-    API->>API: validate type, size, header, at least one row
-    API->>DB: insert import (unique user + SHA-256 of the file)
+    API->>API: valida tipo, tamanho, cabeçalho e pelo menos uma linha
+    API->>DB: grava a importação (único por usuário + SHA-256 do arquivo)
     API->>Q: ProcessImportJob
-    API-->>SPA: 202 Accepted + import
-    W->>W: read the file once, record the byte offset of every 1,000 rows
-    W->>Q: Bus::batch of ImportChunkJob (offset, first line, row count)
-    par each chunk, on any worker
-        W->>W: seek to the offset, validate each row
-        W->>DB: one transaction: upsert valid rows on (import_id, line_number), store rejected lines with reasons
-        W->>W: after commit: TransactionsImported → bump the dashboard cache version in Redis
+    API-->>SPA: 202 Accepted + importação
+    W->>W: lê o arquivo uma vez e anota a posição em bytes de cada bloco de 1.000 linhas
+    W->>Q: Bus::batch de ImportChunkJob (posição, primeira linha, quantidade)
+    par cada bloco, em qualquer worker
+        W->>W: pula direto para a posição e valida cada linha
+        W->>DB: uma transação: upsert das linhas válidas em (import_id, line_number) e grava as recusadas com os motivos
+        W->>W: depois do commit: TransactionsImported → sobe a versão do cache do painel no Redis
     end
-    W->>DB: finalize: recount, check imported + rejected = rows in the file
-    W->>W: ImportFinished → bump the cache version again
-    loop smart polling: 0.5 s, 1 s, 2 s, then every 4 s
+    W->>DB: fechamento: reconta e confere importadas + recusadas = linhas do arquivo
+    W->>W: ImportFinished → sobe a versão do cache de novo
+    loop polling inteligente: 0,5 s, 1 s, 2 s, depois a cada 4 s
         SPA->>API: GET /imports/{id}
     end
 ```
 
-## Import rules
+## Regras da importação
 
-- **Header:** `date`, `description`, `amount` and `type`, in any order and any letter case. Extra columns are ignored.
-- **File:** UTF-8 or Windows-1252 (Latin-1); comma, semicolon or tab separators; BOM and CRLF are fine; up to 20 MB.
-- **`date`:** `YYYY-MM-DD` and a real calendar date (`2025-02-30` is rejected).
-- **`description`:** required, at most 255 characters.
-- **`amount`:** a **positive integer in cents**. No sign, separators or decimals: `-500`, `1.234,56` and `12.5`
-  are rejected rather than guessed.
-- **`type`:** `Receita` → income, `Despesa` → expense (also `income` / `expense`), in any letter case.
-- **Blank lines** are skipped. Line numbers match the file, and the header is line 1.
-- **Invalid rows** do not stop the import. Valid rows are stored, each rejected line is kept with every reason,
-  and the import ends as `completed_with_errors`.
-- **The same file** (same SHA-256) uploaded twice by the same user answers **409**.
+- **Cabeçalho:** `date`, `description`, `amount` e `type`, em qualquer ordem e com maiúsculas ou minúsculas. Colunas a mais são ignoradas.
+- **Arquivo:** UTF-8 ou Windows-1252 (Latin-1); separador vírgula, ponto e vírgula ou tab; BOM e CRLF são aceitos; até 20 MB.
+- **`date`:** `YYYY-MM-DD` e uma data que existe no calendário (`2025-02-30` é recusada).
+- **`description`:** obrigatória, até 255 caracteres.
+- **`amount`:** **inteiro positivo em centavos**. Sem sinal, separador ou casas decimais: `-500`, `1.234,56` e `12.5`
+  são recusados, em vez de adivinhados.
+- **`type`:** `Receita` → income, `Despesa` → expense (também `income` / `expense`), com maiúsculas ou minúsculas.
+- **Linhas em branco** são puladas. O número da linha é o do arquivo, e o cabeçalho é a linha 1.
+- **Linhas inválidas** não param a importação. As válidas são gravadas, cada linha recusada fica guardada com
+  todos os motivos, e a importação termina como `completed_with_errors`.
+- **O mesmo arquivo** (mesmo SHA-256) enviado duas vezes pelo mesmo usuário responde **409**.
 
-Possible statuses: `pending` → `processing` → `completed` | `completed_with_errors` | `failed`.
+Situações possíveis: `pending` → `processing` → `completed` | `completed_with_errors` | `failed`.
 
-## Architecture
+## Arquitetura
 
 ```
 backend/app
-├── Domain/                 plain PHP, no framework (enforced by tests/Unit/ArchitectureTest.php)
-│   ├── Finance/            TransactionType, TransactionData, FinancialSummary (the balance rule),
-│   │                       TransactionRepository (port), TransactionsImported event
-│   └── Import/             ImportStatus, TransactionRowParser (validation rules), RowRejection, ImportFinished
-├── Application/            use cases (Actions): StartImport, PlanImport, ImportChunk, FinalizeImport,
+├── Domain/                 PHP puro, sem framework (garantido por tests/Unit/ArchitectureTest.php)
+│   ├── Finance/            TransactionType, TransactionData, FinancialSummary (a regra de saldo),
+│   │                       TransactionRepository (porta), evento TransactionsImported
+│   └── Import/             ImportStatus, TransactionRowParser (regras de validação), RowRejection, ImportFinished
+├── Application/            casos de uso (Actions): StartImport, PlanImport, ImportChunk, FinalizeImport,
 │                           RetryImport, RecoverStuckImports, DiscardFailedImports, GetDashboardSummary,
 │                           ListTransactions
-├── Infrastructure/         CsvReader (streaming, byte offsets), DbTransactionRepository (bulk upsert, sums),
-│                           DashboardSummaryCache (versioned keys)
-├── Http/                   thin controllers, FormRequests, API Resources
-├── Jobs/                   ProcessImportJob (plans and fans out), ImportChunkJob (one chunk)
-├── Listeners/, Observers/  dashboard cache invalidation
-└── Models/                 Eloquent models (persistence)
+├── Infrastructure/         CsvReader (leitura em streaming, posições em bytes), DbTransactionRepository
+│                           (upsert em lote, somas), DashboardSummaryCache (chaves com versão)
+├── Http/                   controllers finos, FormRequests, API Resources
+├── Jobs/                   ProcessImportJob (planeja e distribui), ImportChunkJob (um bloco)
+├── Listeners/, Observers/  invalidação do cache do painel
+└── Models/                 models Eloquent (persistência)
 
 frontend/src
-├── api/                    fetch client (Bearer, typed errors), endpoints
-├── composables/            usePolling (smart polling), useImportTracker
-├── stores/                 session (Pinia)
-├── components/, views/     dashboard, import panel, transactions
-└── types/api.ts            the API contract (mirrors the Laravel Resources)
+├── api/                    cliente fetch (Bearer, erros tipados), rotas
+├── composables/            usePolling (polling inteligente), useImportTracker
+├── stores/                 sessão (Pinia)
+├── components/, views/     painel, área de envio, transações
+└── types/api.ts            o contrato da API (espelha os Resources do Laravel)
 ```
 
-Architecture tests (Pest `arch()`) enforce four rules:
-- the domain uses nothing from Laravel, models, HTTP or infrastructure;
-- domain events and data objects are `final readonly`;
-- use cases do not know about HTTP;
-- controllers run no queries and dispatch no jobs.
+Os testes de arquitetura (Pest `arch()`) garantem quatro regras:
+- o domínio não usa nada do Laravel, dos models, do HTTP nem da infraestrutura;
+- eventos e objetos de dados do domínio são `final readonly`;
+- os casos de uso não conhecem HTTP;
+- os controllers não fazem consulta nem despacham job.
 
-## Design patterns
+## Padrões de projeto
 
-| Pattern | Where | Why here |
+| Padrão | Onde | Por que aqui |
 |---|---|---|
-| **Action / use case** | `app/Application/*Action.php` | One class per use case. Controllers, jobs and commands only translate input and call it, so the same use case serves HTTP, queue and CLI. |
-| **Repository (port and adapter)** | Port: `Domain/Finance/Contracts/TransactionRepository`; adapter: `Infrastructure/Persistence/DbTransactionRepository` | Only where the query is the point: the bulk upsert and the aggregate. Plain reads use Eloquent directly, because a repository in front of every model would be ceremony. |
-| **Domain event + listener** | `TransactionsImported`, `ImportFinished` → `InvalidateDashboardSummary` | Bulk upserts bypass Eloquent, so a model observer cannot see imported rows. The import announces them. |
-| **Observer** | `TransactionObserver` | Covers transactions written one at a time through Eloquent (a seeder, tinker, a future manual-entry endpoint). Tested by `is refreshed when a single transaction is saved or deleted` in [`DashboardSummaryTest.php:131`](backend/tests/Feature/Dashboard/DashboardSummaryTest.php#L131). |
-| **DTO / value object** | `TransactionData` (a validated row), `FinancialSummary` (totals and the balance rule), `CsvChunk` (a job's payload) | Immutable (`final readonly`), so validity is checked once in the constructor. |
-| **Enum** | `TransactionType`, `ImportStatus` | Closed sets of values, cast on the models and backed by `CHECK` constraints. |
-| **Batch / fan-out** | `ProcessImportJob` → `Bus::batch(ImportChunkJob…)` → `finally` | Parallel chunks with progress and a single finalize step. |
+| **Action / caso de uso** | `app/Application/*Action.php` | Uma classe por caso de uso. Controllers, jobs e comandos só traduzem a entrada e chamam a Action, então o mesmo caso de uso serve HTTP, fila e linha de comando. |
+| **Repository (porta e adaptador)** | Porta: `Domain/Finance/Contracts/TransactionRepository`; adaptador: `Infrastructure/Persistence/DbTransactionRepository` | Só onde a consulta é o ponto central: o upsert em lote e a soma. Leituras simples usam o Eloquent direto, porque um repository na frente de cada model seria cerimônia. |
+| **Evento de domínio + listener** | `TransactionsImported`, `ImportFinished` → `InvalidateDashboardSummary` | O upsert em lote passa por fora do Eloquent, então um observer do model não vê as linhas importadas. A importação avisa. |
+| **Observer** | `TransactionObserver` | Cobre transações gravadas uma a uma pelo Eloquent (um seeder, o tinker, uma futura rota de lançamento manual). Testado por `is refreshed when a single transaction is saved or deleted` em [`DashboardSummaryTest.php:131`](backend/tests/Feature/Dashboard/DashboardSummaryTest.php#L131). |
+| **DTO / Value Object** | `TransactionData` (uma linha validada), `FinancialSummary` (totais e a regra de saldo), `CsvChunk` (o conteúdo do job) | Imutáveis (`final readonly`), então a validade é conferida uma vez, no construtor. |
+| **Enum** | `TransactionType`, `ImportStatus` | Conjuntos fechados de valores, convertidos nos models e garantidos por restrições `CHECK`. |
+| **Batch / fan-out** | `ProcessImportJob` → `Bus::batch(ImportChunkJob…)` → `finally` | Blocos em paralelo, com progresso e um único passo de fechamento. |
 
-On top of the patterns:
-- **Events after the commit, by convention:** events are dispatched with `DB::afterCommit()` at the dispatch
-  site, not with `ShouldDispatchAfterCommit` on the event, because domain events must stay plain PHP (the
-  architecture test forbids Laravel in the domain). The guarantee is the same: listeners only ever see
-  committed rows, even if a caller wraps the use case in its own transaction.
-- **Strict models in development:** `Model::shouldBeStrict()` makes N+1 queries and silently dropped
-  attributes fail loudly outside production.
+Além dos padrões:
+- **Eventos depois do commit, por convenção:** os eventos são disparados com `DB::afterCommit()` no ponto de
+  disparo, e não com `ShouldDispatchAfterCommit` no evento, porque os eventos de domínio continuam PHP puro
+  (o teste de arquitetura proíbe Laravel no domínio). A garantia é a mesma: os listeners só veem linhas já
+  gravadas, mesmo que quem chama envolva o caso de uso numa transação própria.
+- **Models estritos em desenvolvimento:** `Model::shouldBeStrict()` faz consultas N+1 e atributos descartados
+  em silêncio falharem de forma visível fora da produção.
 
-## Design decisions
+## Decisões técnicas
 
-**1. Money is an integer number of cents.**
-- **Decision:** a `BIGINT` that is always positive. The sign comes from `type`, and the balance rule
-  (`income − expense`) lives in one place, `FinancialSummary`.
-- **Why:** floats lose cents. The provided file only has integers from 5001 to 1499842, so cents is the only
-  unambiguous reading.
-- **Database guard:** `CHECK (type IN ('income','expense'))` and `CHECK (amount_cents > 0)`.
+**1. Dinheiro é um número inteiro de centavos.**
+- **Decisão:** um `BIGINT` sempre positivo. O sinal vem do `type`, e a regra de saldo (`receitas − despesas`)
+  fica num lugar só, o `FinancialSummary`.
+- **Por quê:** float perde centavos. O arquivo fornecido só tem inteiros de 5001 a 1499842, então centavos é a
+  única leitura sem ambiguidade.
+- **Proteção no banco:** `CHECK (type IN ('income','expense'))` e `CHECK (amount_cents > 0)`.
 
-**2. The queue carries an address, not the data.**
-- **Decision:** `ProcessImportJob` reads the file once and records the byte offset where every chunk of
-  1,000 rows starts. Each `ImportChunkJob` seeks straight there.
-- **Why:** Redis holds three integers per job, and worker memory is the same for 15 thousand or 15 million
-  rows. Chunks run in a `Bus::batch` (progress, `allowFailures`, `finally`), so more workers means more
-  parallel chunks.
+**2. A fila leva um endereço, não os dados.**
+- **Decisão:** o `ProcessImportJob` lê o arquivo uma vez e anota a posição em bytes onde começa cada bloco de
+  1.000 linhas. Cada `ImportChunkJob` pula direto para lá.
+- **Por quê:** o Redis guarda três números por job, e a memória do worker é a mesma para 15 mil ou 15 milhões
+  de linhas. Os blocos rodam num `Bus::batch` (progresso, `allowFailures`, `finally`), então mais workers
+  significam mais blocos em paralelo.
 
-**3. Idempotency at two levels.**
-- **File:** a unique index on `(user_id, file_hash)`. Two identical uploads racing each other are settled by
-  the database, and the loser gets a 409.
-- **Row:** a unique index on `(import_id, line_number)` plus an upsert. Queues deliver at least once, so a
-  chunk that runs twice (for example, a worker died after the commit) inserts nothing new, and the counters
-  grow only by the rows really stored.
-- **Why not `INSERT IGNORE`:** in MySQL it would also turn real errors (truncation, `CHECK`, foreign keys)
-  into warnings.
-- **Caveat:** in MySQL, the no-op upsert counts 0 affected rows and fires on any unique key, which is safe
-  here because that is the table's only one. In PostgreSQL, `ON CONFLICT DO NOTHING` would be the
-  equivalent.
+**3. Idempotência em dois níveis.**
+- **Arquivo:** índice único em `(user_id, file_hash)`. Dois envios iguais ao mesmo tempo são resolvidos pelo
+  banco, e o segundo recebe 409.
+- **Linha:** índice único em `(import_id, line_number)` mais upsert. A fila entrega pelo menos uma vez, então
+  um bloco que roda duas vezes (por exemplo, o worker caiu depois do commit) não grava nada novo, e os
+  contadores só crescem com as linhas gravadas de verdade.
+- **Por que não `INSERT IGNORE`:** no MySQL ele também transformaria erros reais (truncamento, `CHECK`, chave
+  estrangeira) em simples avisos.
+- **Ressalva:** no MySQL, o upsert sem mudança conta 0 linhas afetadas e vale para qualquer chave única, o que
+  é seguro aqui porque essa é a única da tabela. No PostgreSQL, o equivalente seria `ON CONFLICT DO NOTHING`.
 
-**4. Partial import with a report, plus a counting barrier.**
-- **Decision:** a bad line becomes a reported rejection, not a failed file. When the batch ends, the import
-  is recounted from the tables, and it only completes if `imported + rejected = rows in the file`.
-  Otherwise it fails with the reason and can be retried without duplicates.
-- **Why:** rejecting 14,999 good rows because of one bad line wastes the user's work.
+**4. Importação parcial com relatório, mais uma conferência de contagem.**
+- **Decisão:** uma linha ruim vira uma recusa relatada, não um arquivo inteiro com falha. Quando o batch
+  termina, a importação é recontada a partir das tabelas e só conclui se `importadas + recusadas = linhas do
+  arquivo`. Se não bater, ela falha com o motivo e pode ser repetida sem duplicar.
+- **Por quê:** recusar 14.999 linhas boas por causa de uma linha ruim desperdiça o trabalho do usuário.
 
-**5. Dashboard cache with a versioned key.**
-- **Decision:** the key is `dashboard:summary:{user}:v{version}`, and invalidating means incrementing the
-  version.
-- **Why not delete the key:** a read that started before an import committed could write the old totals
-  back right after the delete. With a version, that late write lands on a key nobody reads.
-- **What invalidates it:** the domain events and the observer described above. One-hour TTL as a safety net.
-- **What it computes:** one aggregate query on a covering index. The cache stores a plain array, because
-  Laravel 13 refuses to unserialize objects from the cache. The dashboard tests run on the real Redis store:
-  the in-memory array store would hide that trap (verified: caching the object fails there with
+**5. Cache do painel com versão na chave.**
+- **Decisão:** a chave é `dashboard:summary:{user}:v{version}`, e invalidar é subir a versão.
+- **Por que não apagar a chave:** uma leitura que começou antes do commit de uma importação poderia gravar os
+  totais antigos logo depois do apagamento. Com a versão, essa gravação atrasada cai numa chave que ninguém lê.
+- **O que invalida:** os eventos de domínio e o observer descritos acima. TTL de uma hora como rede de segurança.
+- **O que calcula:** uma consulta de soma sobre um índice que cobre a consulta. O cache guarda um array
+  simples, porque o Laravel 13 se recusa a desserializar objetos do cache. Os testes do painel rodam no Redis de
+  verdade: o store em memória (array) esconderia essa armadilha (conferido: guardar o objeto falha ali com
   `__PHP_Incomplete_Class`).
 
-**6. Counters outside the chunk transaction (a deadlock found by measuring).**
-- **The problem:** with three workers, imports failed: 3 of 15 chunks exhausted their retries on deadlocks.
-  Inserting a transaction takes a shared lock on the parent import row (foreign key check), and updating
-  that row's counters in the same transaction needs an exclusive one. Two chunks committing together wait
-  for each other.
-- **The fix:** the counters only feed the progress bar, so they are updated after the commit, and the
-  finalize step recounts from the tables. The chunk transaction also retries itself on a deadlock.
-- **Result:** 0 deadlocks (InnoDB metrics) and 0 failed jobs with three workers.
+**6. Contadores fora da transação do bloco (um deadlock achado medindo).**
+- **O problema:** com três workers, importações falharam: 3 de 15 blocos esgotaram as tentativas por deadlock.
+  Inserir uma transação pega uma trava compartilhada na linha da importação (conferência da chave
+  estrangeira), e atualizar os contadores dessa linha na mesma transação pede uma trava exclusiva. Dois blocos
+  fazendo commit juntos ficam esperando um pelo outro.
+- **A correção:** os contadores só alimentam a barra de progresso, então são atualizados depois do commit, e o
+  fechamento reconta a partir das tabelas. A transação do bloco também se repete sozinha em caso de deadlock.
+- **Resultado:** 0 deadlocks (métricas do InnoDB) e 0 jobs com falha com três workers.
 
-**7. Token authentication for a truly separate SPA.**
-- **Tokens:** Sanctum Bearer tokens (8 h), with session fallback disabled. The SPA is served from the same
-  origin as the API, so there is no CORS.
-- **Login:** the password check runs in Laravel's timebox, so an unknown e-mail and a wrong password take the
-  same time and get the same message. Attempts are throttled per account and per IP.
-- **Token storage in the browser:** the token lives in `sessionStorage` (per tab, gone when the browser
-  closes).
-- **CSP:** the SPA is served with a strict Content-Security-Policy (`script-src 'self'`, `connect-src 'self'`),
-  which reduces the impact of an XSS.
+**7. Autenticação por token para uma SPA realmente separada.**
+- **Tokens:** token Bearer do Sanctum (8 h), sem cair para sessão. A SPA é servida no mesmo endereço da API,
+  então não há CORS.
+- **Login:** a conferência da senha roda no timebox do Laravel, então um e-mail que não existe e uma senha
+  errada levam o mesmo tempo e recebem a mesma mensagem. As tentativas têm limite por conta e por IP.
+- **Onde o token fica no navegador:** no `sessionStorage` (por aba, some quando o navegador fecha).
+- **CSP:** a SPA sai com uma Content-Security-Policy estrita (`script-src 'self'`, `connect-src 'self'`), que
+  reduz o impacto de um XSS.
 
-**8. Smart polling instead of WebSockets.**
-- **Decision:** the import finishes once, so the SPA polls with back-off (0.5 s, 1 s, 2 s, then every 4 s).
-  It stops by itself, pauses while the tab is hidden, and after repeated failures it says the connection was
-  lost and offers to resume.
-- **Trade-off:** no WebSocket server to run. Laravel Reverb is the natural next step, and `ImportFinished`
-  is already in place.
+**8. Polling inteligente em vez de WebSockets.**
+- **Decisão:** a importação termina uma vez só, então a SPA consulta com intervalo crescente (0,5 s, 1 s, 2 s,
+  depois a cada 4 s). O polling para sozinho, faz pausa enquanto a aba está escondida e, depois de falhas
+  seguidas, avisa que a conexão caiu e oferece retomar.
+- **Troca:** nenhum servidor de WebSocket para manter. O Laravel Reverb é o próximo passo natural, e o evento
+  `ImportFinished` já existe.
 
-**9. Tests run on MySQL (and Redis), not SQLite.**
-- **Why:** aggregates, upserts, `CHECK` constraints and locks behave differently across engines, and so do
-  cache stores.
-- **How:** tests use a separate schema on the same MySQL 8.4 and Redis database 15, and CI uses MySQL and
-  Redis services. One acceptance test imports the real 15,000-row file and checks the expected totals.
+**9. Testes no MySQL (e no Redis), não no SQLite.**
+- **Por quê:** somas, upserts, restrições `CHECK` e travas se comportam diferente entre bancos, e o mesmo vale
+  para os stores de cache.
+- **Como:** os testes usam um schema separado no mesmo MySQL 8.4 e o banco 15 do Redis, e a CI usa MySQL e
+  Redis como serviços. Um teste de aceitação importa o arquivo real de 15 mil linhas e confere os totais.
 
-**10. Deep pages read from the index (deferred join).**
-- **Order:** the list is ordered by `(occurred_on DESC, id DESC)`. The `id` tie-breaker keeps pages from
-  shuffling.
-- **Deferred join:** with plain `OFFSET`, MySQL fetched and discarded every row before the page (page 751:
-  68 ms). Now the page's ids come from the covering index `(user_id, occurred_on, id)` (or
-  `(user_id, type, occurred_on, id)` when filtering by type), and only those rows are read: 4 ms.
-- **What is left:** each page still costs one `COUNT(*)` over the user's rows, which "page N of M" needs.
-  At millions of rows, cursor pagination (no total, no jump to page N) would be the move.
+**10. Páginas profundas lidas do índice (deferred join).**
+- **Ordem:** a lista é ordenada por `(occurred_on DESC, id DESC)`. O desempate pelo `id` impede que as páginas
+  se embaralhem.
+- **Deferred join:** com `OFFSET` simples, o MySQL lia e descartava todas as linhas antes da página (página
+  751: 68 ms). Agora os ids da página saem do índice `(user_id, occurred_on, id)` (ou
+  `(user_id, type, occurred_on, id)` com filtro de tipo), e só essas linhas são lidas: 4 ms.
+- **O que falta:** cada página ainda custa um `COUNT(*)` sobre as linhas do usuário, que o "página N de M"
+  precisa. Com milhões de linhas, a paginação por cursor (sem total e sem pular para a página N) seria o caminho.
 
-**11. Operations.**
-- **Scheduler:** expired tokens are pruned. An import with no progress for an hour is failed so it can be
-  retried (every chunk touches `updated_at`). A failed import not retried within 7 days is discarded with its
-  file and partial rows, and can then be uploaded again.
-- **Stored files:** an uploaded file is deleted once its rows are stored.
+**11. Operação.**
+- **Agendador:** tokens vencidos são apagados. Uma importação sem progresso há uma hora vira falha para poder
+  ser repetida (cada bloco atualiza o `updated_at`). Uma importação falha que não foi repetida em 7 dias é
+  descartada com o arquivo e as linhas parciais, e então pode ser enviada de novo.
+- **Arquivos enviados:** o arquivo é apagado assim que as linhas dele são gravadas.
 
-**12. One command to start.**
-- **Decision:** the `app` container installs dependencies, migrates and seeds on start, and the worker,
-  scheduler and nginx wait for its healthcheck.
-- **Production:** migrations would be a release step instead of a boot step.
+**12. Um comando para subir.**
+- **Decisão:** o container `app` instala as dependências, roda as migrations e o seed ao subir, e o worker, o
+  scheduler e o nginx esperam o healthcheck dele.
+- **Em produção:** as migrations seriam um passo da publicação, não da subida do container.
 
-## Measured performance
+## Desempenho medido
 
-Laptop, Docker on WSL2. Each row says how to reproduce it.
+Notebook, Docker no WSL2. Cada linha diz como reproduzir.
 
-| What | Result | How |
+| O quê | Resultado | Como |
 |---|---|---|
-| First `make up` on a clean machine | 2 min 41 s | CI job "Full stack" (GitHub runner, no cache) |
-| Upload answered (202) | 0.08 – 0.24 s | `curl -w '%{time_total}'` on `POST /api/v1/imports` |
-| Provided file (15,000 rows), 1 worker | 1.6 – 3.0 s, ~90 ms per 1,000-row chunk | `make fresh && make smoke` (prints the time); `make logs` shows `import.chunk … "ms"` |
-| Provided file, 3 workers | 1.1 – 2.7 s, 0 deadlocks, 0 failed jobs | `docker compose up -d --scale worker=3 --no-recreate`, then the same |
-| 200,000 rows, 1 worker vs 3 workers | 47 s vs 33 s | Same, with a larger generated file |
-| Dashboard summary | 54 ms on a cold cache, 21 ms cached | `curl -w '%{time_total}'` twice on `GET /api/v1/dashboard/summary` |
-| Dashboard query | Covering index lookup: the 15,004 rows are read from the index only, 8 ms in total | `EXPLAIN ANALYZE` below |
-| Transaction list, page 751 (offset 15,000) | 68 ms → **4 ms** with the deferred join; endpoint 25 ms | `EXPLAIN ANALYZE` below |
+| Primeiro `make up` numa máquina limpa | 2 min 41 s | Job "Full stack" da CI (máquina do GitHub, sem cache) |
+| Resposta do envio (202) | 0,08 a 0,24 s | `curl -w '%{time_total}'` no `POST /api/v1/imports` |
+| Arquivo fornecido (15 mil linhas), 1 worker | 1,6 a 3,0 s, ~90 ms por bloco de 1.000 linhas | `make fresh && make smoke` (mostra o tempo); `make logs` mostra `import.chunk … "ms"` |
+| Arquivo fornecido, 3 workers | 1,1 a 2,7 s, 0 deadlocks, 0 jobs com falha | `docker compose up -d --scale worker=3 --no-recreate`, depois o mesmo |
+| 200 mil linhas, 1 worker × 3 workers | 47 s × 33 s | O mesmo, com um arquivo maior gerado |
+| Resumo do painel | 54 ms com o cache frio, 21 ms do cache | `curl -w '%{time_total}'` duas vezes no `GET /api/v1/dashboard/summary` |
+| Consulta do painel | Leitura só do índice: as 15.004 linhas vêm do índice, 8 ms no total | `EXPLAIN ANALYZE` abaixo |
+| Lista de transações, página 751 (offset 15.000) | 68 ms → **4 ms** com o deferred join; rota em 25 ms | `EXPLAIN ANALYZE` abaixo |
 
 ```sql
--- Dashboard: "Covering index lookup on transactions using transactions_user_id_type_amount_cents_index"
+-- Painel: "Covering index lookup on transactions using transactions_user_id_type_amount_cents_index"
 EXPLAIN ANALYZE SELECT SUM(CASE WHEN type = 'income' THEN amount_cents ELSE 0 END),
                        SUM(CASE WHEN type = 'expense' THEN amount_cents ELSE 0 END), COUNT(*)
 FROM transactions WHERE user_id = 1;
 
--- Page 751: the ids come from "Covering index lookup ... (reverse)", then 20 primary-key lookups
+-- Página 751: os ids vêm de "Covering index lookup ... (reverse)", depois 20 buscas pela chave primária
 EXPLAIN ANALYZE SELECT transactions.* FROM transactions
 INNER JOIN (SELECT id FROM transactions WHERE user_id = 1
             ORDER BY occurred_on DESC, id DESC LIMIT 20 OFFSET 15000) AS page ON page.id = transactions.id
 ORDER BY transactions.occurred_on DESC, transactions.id DESC;
 ```
 
-Run them with `docker compose exec mysql mysql -uapp -psecret financial_import`.
+Rode com `docker compose exec mysql mysql -uapp -psecret financial_import`.
 
-**Reading the numbers:**
-- **Idle workers wake at once:** they wait on Redis with a blocking pop (`block_for`), so a new chunk starts
-  right away instead of after the default 3-second poll.
-- **Small files:** with 15,000 rows the time is mostly fixed cost (queue pickup, planning, finalize), so extra
-  workers barely change it.
-- **Large files:** at 200,000 rows, three workers cut 47 s to 33 s. What limits the rest is MySQL's write
-  throughput on this machine, not PHP.
+**Como ler os números:**
+- **Workers parados acordam na hora:** eles esperam no Redis com uma leitura bloqueante (`block_for`), então um
+  bloco novo começa imediatamente, e não depois da espera padrão de 3 segundos.
+- **Arquivos pequenos:** com 15 mil linhas, o tempo é quase todo custo fixo (a fila pegar o job, o
+  planejamento, o fechamento), então mais workers quase não mudam o resultado.
+- **Arquivos grandes:** com 200 mil linhas, três workers baixam de 47 s para 33 s. O que limita o resto é a
+  velocidade de escrita do MySQL nesta máquina, não o PHP.
 
-## Limitations and next steps
+## Limites e próximos passos
 
-- **Duplicate rows:** the CSV has no transaction identifier, so two *different* files with overlapping rows
-  both get imported. A fingerprint warning with user confirmation would be the next step.
-- **Shared storage:** workers share a local volume with the uploaded file. Across several hosts, this would
-  be S3 (or any object storage) with ranged reads per chunk.
-- **Real-time updates:** polling today. Reverb would broadcast `ImportFinished`.
-- **Pagination at scale:** cursor pagination instead of `COUNT(*)` with page numbers.
-- **Queue operations:** a single Redis instance. Horizon would add per-queue metrics and balancing.
+- **Linhas repetidas entre arquivos:** o CSV não tem identificador da transação, então dois arquivos
+  *diferentes* com linhas em comum são importados os dois. O próximo passo seria um aviso por impressão digital
+  da linha, com confirmação do usuário.
+- **Armazenamento compartilhado:** os workers dividem um volume local com o arquivo enviado. Com várias
+  máquinas, seria S3 (ou outro armazenamento de objetos) com leitura por faixa de bytes em cada bloco.
+- **Atualização em tempo real:** hoje é polling. O Reverb transmitiria o `ImportFinished`.
+- **Paginação em escala:** paginação por cursor em vez de `COUNT(*)` com número de página.
+- **Operação da fila:** uma única instância do Redis. O Horizon traria métricas e balanceamento por fila.
 
-## Troubleshooting
+## Problemas comuns
 
-- **Port already in use:** `APP_PORT=8091 MYSQL_PORT=33071 make up`.
-- **Files owned by another user on Linux:** `make up` passes your user ID to the images. With plain
-  Compose, use `HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up -d --build --wait`.
-- **Worker code changes:** `make restart-worker` (queue workers keep the code in memory).
-- **Start over with an empty database:** `make fresh`.
-- **Logs:** `make logs`. Each chunk logs `import.chunk` with its row counts and duration.
+- **Porta em uso:** `APP_PORT=8091 MYSQL_PORT=33071 make up`.
+- **Arquivos de outro usuário no Linux:** o `make up` passa o seu ID de usuário para as imagens. Com Compose
+  puro, use `HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up -d --build --wait`.
+- **Mudança no código do worker:** `make restart-worker` (os workers guardam o código na memória).
+- **Começar de novo com o banco vazio:** `make fresh`.
+- **Logs:** `make logs`. Cada bloco registra `import.chunk` com a contagem de linhas e o tempo.
