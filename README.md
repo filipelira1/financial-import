@@ -6,9 +6,32 @@ A CSV import and financial management system. A **Laravel 13 REST API** receives
 **queue** validates it and stores it in parallel chunks, and a **Vue 3 SPA** shows the upload
 progress, a cached income/expense/balance dashboard and a paginated list of transactions.
 
+| Dashboard after importing the provided file | An import of 200,000 rows in progress |
+|---|---|
+| ![Dashboard with income, expenses and balance](docs/images/dashboard.jpg) | ![Progress bar of an import being processed](docs/images/import-progress.jpg) |
+
 - **Quick start:** `make up`, then open <http://localhost:8090> and sign in with `demo@example.com` / `password`.
 - **Tests:** `make test` (backend), `make test-frontend` (frontend) and `make smoke` (end to end).
-- **API docs:** <http://localhost:8090/docs/api>, or [`docs/openapi.json`](docs/openapi.json).
+- **API docs:** <http://localhost:8090/docs/api>, or import [`docs/openapi.json`](docs/openapi.json) into Postman or Insomnia.
+
+## Requirements → where → proof
+
+| Requirement | Where | Proof |
+|---|---|---|
+| Isolated RESTful API, Laravel 9+ | Laravel 13, [`routes/api.php`](backend/routes/api.php) under `/api/v1` | [`docs/openapi.json`](docs/openapi.json); CI checks that it matches the code |
+| API and SPA only for authenticated users | Sanctum Bearer tokens ([`AuthController`](backend/app/Http/Controllers/Api/V1/AuthController.php)); SPA route guard ([`router.ts`](frontend/src/router.ts)) | [`AuthenticationTest`](backend/tests/Feature/Auth/AuthenticationTest.php); `requires a token on every import endpoint` in [`ImportApiTest`](backend/tests/Feature/Imports/ImportApiTest.php) |
+| CSV upload, reading, validation and storage in the background | [`StartImportAction`](backend/app/Application/Import/StartImportAction.php), [`ProcessImportJob`](backend/app/Jobs/ProcessImportJob.php), [`ImportChunkJob`](backend/app/Jobs/ImportChunkJob.php), [`TransactionRowParser`](backend/app/Domain/Import/TransactionRowParser.php), [`CsvReader`](backend/app/Infrastructure/Csv/CsvReader.php) | [`ImportProcessingTest`](backend/tests/Feature/Imports/ImportProcessingTest.php) (dirty files, idempotency), [`RealFileAcceptanceTest`](backend/tests/Feature/Imports/RealFileAcceptanceTest.php) (15,000 rows, exact totals), `make smoke` |
+| Job dispatched on upload | `ProcessImportJob` on the `imports` queue, then a `Bus::batch` of chunks | `Queue::assertPushedOn` in `ImportApiTest`; `Bus::assertBatched` in `ImportProcessingTest` |
+| Cached dashboard (income, expense, balance), invalidated by events/observers | [`GetDashboardSummaryAction`](backend/app/Application/Finance/GetDashboardSummaryAction.php), [`DashboardSummaryCache`](backend/app/Infrastructure/Cache/DashboardSummaryCache.php), [`InvalidateDashboardSummary`](backend/app/Listeners/InvalidateDashboardSummary.php), [`TransactionObserver`](backend/app/Observers/TransactionObserver.php) | [`DashboardSummaryTest`](backend/tests/Feature/Dashboard/DashboardSummaryTest.php), run on the real Redis store |
+| An expense never counts as income | [`FinancialSummary`](backend/app/Domain/Finance/FinancialSummary.php) (the only balance rule), `CHECK` constraints in the [migration](backend/database/migrations/2026_11_24_100001_create_transactions_table.php) | [`FinancialSummaryTest`](backend/tests/Unit/Domain/FinancialSummaryTest.php), `never counts an expense as income` (dashboard and import), [`TransactionConstraintsTest`](backend/tests/Feature/Database/TransactionConstraintsTest.php) |
+| Vue: paginated list and upload with visual feedback | [`TransactionsView`](frontend/src/views/TransactionsView.vue), [`ImportPanel`](frontend/src/components/ImportPanel.vue), [`usePolling`](frontend/src/composables/usePolling.ts) | Vitest ([`usePolling.test.ts`](frontend/src/composables/usePolling.test.ts), [`useImportTracker.test.ts`](frontend/src/composables/useImportTracker.test.ts)); screenshots above |
+| Docker Compose: app, MySQL, Redis, worker | [`docker-compose.yml`](docker-compose.yml) (plus nginx and scheduler) | The CI `stack` job starts it from scratch and imports the real file |
+| Tests with Pest or PHPUnit | Pest 5 (backend), Vitest (frontend) | `make test`, `make test-frontend`, [CI](.github/workflows/ci.yml) |
+| Extra: DDD, SOLID, Actions/Services/Repositories, thin controllers | `app/Domain`, `app/Application`, `app/Infrastructure` ([Architecture](#architecture)) | [`ArchitectureTest`](backend/tests/Unit/ArchitectureTest.php) |
+| Extra: API documentation | Scramble (generated from the code) | <http://localhost:8090/docs/api>, `docs/openapi.json` |
+| Extra: CI running the tests | [GitHub Actions](.github/workflows/ci.yml): backend, frontend, full stack | Badge above |
+| Extra: notice when processing ends | Smart polling (back-off, pauses with the tab hidden); `ImportFinished` event ready for WebSockets | `usePolling.test.ts` |
+| Extra: everything in English | Code, commits, README, API docs | — |
 
 ---
 
@@ -21,10 +44,11 @@ progress, a cached income/expense/balance dashboard and a paginated list of tran
 5. [How an import works](#how-an-import-works)
 6. [Import rules](#import-rules)
 7. [Architecture](#architecture)
-8. [Design decisions](#design-decisions)
-9. [Measured performance](#measured-performance)
-10. [Limitations and next steps](#limitations-and-next-steps)
-11. [Troubleshooting](#troubleshooting)
+8. [Design patterns](#design-patterns)
+9. [Design decisions](#design-decisions)
+10. [Measured performance](#measured-performance)
+11. [Limitations and next steps](#limitations-and-next-steps)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -45,7 +69,7 @@ HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up -d --build --wait
 ```
 
 The first start builds the images, installs the PHP dependencies, runs the migrations and creates
-the demo user, which takes a few minutes. Later starts take seconds. Then:
+the demo user. That took **2 min 41 s** on a clean GitHub runner; later starts take seconds. Then:
 
 1. Open <http://localhost:8090> and sign in with **`demo@example.com` / `password`**.
 2. Drop [`backend/tests/fixtures/financial_transactions.csv`](backend/tests/fixtures/financial_transactions.csv)
@@ -53,19 +77,20 @@ the demo user, which takes a few minutes. Later starts take seconds. Then:
 3. Watch the progress bar. The dashboard should end at **income R$ 36.119.609,74**,
    **expenses R$ 26.709.545,74** and **balance R$ 9.410.064,00** (15,000 transactions).
 
-`make help` lists every shortcut. `make down` stops the stack.
+`make help` lists every shortcut. `make down` stops the stack. `make fresh` empties the database
+(keeping the demo user).
 
 ## Running the tests
 
 | Command | What it runs |
 |---|---|
-| `make test` | **Backend:** Pest on MySQL 8.4 (a separate `financial_import_test` schema): unit, feature, an acceptance test with the real 15,000-row file, and architecture tests. |
+| `make test` | **Backend:** Pest on MySQL 8.4 (a separate `financial_import_test` schema), with the dashboard tests on the real Redis store (database 15): unit, feature, an acceptance test with the real 15,000-row file, and architecture tests. |
 | `make test-frontend` | **Frontend:** type-check and Vitest, in a throwaway Node container (no Node.js needed on the host). With Node 22 installed: `cd frontend && npm ci && npm test`. |
 | `make smoke` | **End to end, against the running stack:** signs in, imports the provided CSV through the API, waits for the queue and compares the dashboard with the expected totals. |
 | `make lint` | Pint (code style). |
 
 The same checks run in [GitHub Actions](.github/workflows/ci.yml) on every push:
-- **backend:** Pint, Pest on a MySQL service, and a check that `docs/openapi.json` matches the code;
+- **backend:** Pint, Pest on MySQL and Redis services, and a check that `docs/openapi.json` matches the code;
 - **frontend:** type-check, Vitest and the production build;
 - **stack:** `docker compose up` exactly as above, followed by the smoke test.
 
@@ -83,7 +108,10 @@ The same checks run in [GitHub Actions](.github/workflows/ci.yml) on every push:
 ## API
 
 All endpoints live under `/api/v1`, return JSON and, except login, need `Authorization: Bearer <token>`.
-Interactive docs (generated from the code by Scramble): **<http://localhost:8090/docs/api>**.
+- **Interactive docs**, generated from the code by Scramble: **<http://localhost:8090/docs/api>**. The page
+  is only served when `APP_ENV=local`, the default in `.env.example`.
+- **The same OpenAPI document** is in [`docs/openapi.json`](docs/openapi.json), ready to import into Postman
+  or Insomnia. `make docs` regenerates it.
 
 | Method | Path | Description |
 |---|---|---|
@@ -130,10 +158,10 @@ sequenceDiagram
     par each chunk, on any worker
         W->>W: seek to the offset, validate each row
         W->>DB: one transaction: upsert valid rows on (import_id, line_number), store rejected lines with reasons
-        W->>API: TransactionsImported (after commit) → dashboard cache version + 1
+        W->>W: after commit: TransactionsImported → bump the dashboard cache version in Redis
     end
     W->>DB: finalize: recount, check imported + rejected = rows in the file
-    W->>API: ImportFinished
+    W->>W: ImportFinished → bump the cache version again
     loop smart polling: 0.5 s, 1 s, 2 s, then every 4 s
         SPA->>API: GET /imports/{id}
     end
@@ -148,10 +176,9 @@ sequenceDiagram
 - **`amount`:** a **positive integer in cents**. No sign, separators or decimals: `-500`, `1.234,56` and `12.5`
   are rejected rather than guessed.
 - **`type`:** `Receita` → income, `Despesa` → expense (also `income` / `expense`), in any letter case.
-  An expense is never counted as income. A database `CHECK` constraint enforces this too.
 - **Blank lines** are skipped. Line numbers match the file, and the header is line 1.
-- **Invalid rows** do not stop the import. Valid rows are stored, each rejected line is kept with every
-  reason, and the import ends as `completed_with_errors`.
+- **Invalid rows** do not stop the import. Valid rows are stored, each rejected line is kept with every reason,
+  and the import ends as `completed_with_errors`.
 - **The same file** (same SHA-256) uploaded twice by the same user answers **409**.
 
 Possible statuses: `pending` → `processing` → `completed` | `completed_with_errors` | `failed`.
@@ -188,13 +215,33 @@ Architecture tests (Pest `arch()`) enforce four rules:
 - use cases do not know about HTTP;
 - controllers run no queries and dispatch no jobs.
 
+## Design patterns
+
+| Pattern | Where | Why here |
+|---|---|---|
+| **Action / use case** | `app/Application/*Action.php` | One class per use case. Controllers, jobs and commands only translate input and call it, so the same use case serves HTTP, queue and CLI. |
+| **Repository (port and adapter)** | Port: `Domain/Finance/Contracts/TransactionRepository`; adapter: `Infrastructure/Persistence/DbTransactionRepository` | Only where the query is the point: the bulk upsert and the aggregate. Plain reads use Eloquent directly, because a repository in front of every model would be ceremony. |
+| **Domain event + listener** | `TransactionsImported`, `ImportFinished` → `InvalidateDashboardSummary` | Bulk upserts bypass Eloquent, so a model observer cannot see imported rows. The import announces them. |
+| **Observer** | `TransactionObserver` | Covers transactions written one at a time through Eloquent (a seeder, tinker, a future manual-entry endpoint). Tested by `is refreshed when a single transaction is saved or deleted` in [`DashboardSummaryTest.php:131`](backend/tests/Feature/Dashboard/DashboardSummaryTest.php#L131). |
+| **DTO / value object** | `TransactionData` (a validated row), `FinancialSummary` (totals and the balance rule), `CsvChunk` (a job's payload) | Immutable (`final readonly`), so validity is checked once in the constructor. |
+| **Enum** | `TransactionType`, `ImportStatus` | Closed sets of values, cast on the models and backed by `CHECK` constraints. |
+| **Batch / fan-out** | `ProcessImportJob` → `Bus::batch(ImportChunkJob…)` → `finally` | Parallel chunks with progress and a single finalize step. |
+
+On top of the patterns:
+- **Events after the commit, by convention:** events are dispatched with `DB::afterCommit()` at the dispatch
+  site, not with `ShouldDispatchAfterCommit` on the event, because domain events must stay plain PHP (the
+  architecture test forbids Laravel in the domain). The guarantee is the same: listeners only ever see
+  committed rows, even if a caller wraps the use case in its own transaction.
+- **Strict models in development:** `Model::shouldBeStrict()` makes N+1 queries and silently dropped
+  attributes fail loudly outside production.
+
 ## Design decisions
 
 **1. Money is an integer number of cents.**
 - **Decision:** a `BIGINT` that is always positive. The sign comes from `type`, and the balance rule
   (`income − expense`) lives in one place, `FinancialSummary`.
-- **Why:** floats lose cents. The provided file only has integers from 5001 to 1499842, so cents is the
-  only unambiguous reading.
+- **Why:** floats lose cents. The provided file only has integers from 5001 to 1499842, so cents is the only
+  unambiguous reading.
 - **Database guard:** `CHECK (type IN ('income','expense'))` and `CHECK (amount_cents > 0)`.
 
 **2. The queue carries an address, not the data.**
@@ -227,19 +274,20 @@ Architecture tests (Pest `arch()`) enforce four rules:
   version.
 - **Why not delete the key:** a read that started before an import committed could write the old totals
   back right after the delete. With a version, that late write lands on a key nobody reads.
-- **What invalidates it:** the `TransactionsImported` and `ImportFinished` domain events (bulk upserts
-  bypass Eloquent, so model observers would never fire) and a model observer for single writes, both after
-  commit. One-hour TTL as a safety net.
+- **What invalidates it:** the domain events and the observer described above. One-hour TTL as a safety net.
 - **What it computes:** one aggregate query on a covering index. The cache stores a plain array, because
-  Laravel 13 refuses to unserialize objects from the cache.
+  Laravel 13 refuses to unserialize objects from the cache. The dashboard tests run on the real Redis store:
+  the in-memory array store would hide that trap (verified: caching the object fails there with
+  `__PHP_Incomplete_Class`).
 
-**6. Counters outside the chunk transaction.**
-- **The problem:** with several workers, two chunks of the same import deadlocked. Inserting a transaction
-  takes a shared lock on the parent import row (foreign key check), and updating that row's counters in the
-  same transaction needs an exclusive one.
+**6. Counters outside the chunk transaction (a deadlock found by measuring).**
+- **The problem:** with three workers, imports failed: 3 of 15 chunks exhausted their retries on deadlocks.
+  Inserting a transaction takes a shared lock on the parent import row (foreign key check), and updating
+  that row's counters in the same transaction needs an exclusive one. Two chunks committing together wait
+  for each other.
 - **The fix:** the counters only feed the progress bar, so they are updated after the commit, and the
   finalize step recounts from the tables. The chunk transaction also retries itself on a deadlock.
-- **Result:** 0 deadlocks and 0 failed jobs with 3 workers.
+- **Result:** 0 deadlocks (InnoDB metrics) and 0 failed jobs with three workers.
 
 **7. Token authentication for a truly separate SPA.**
 - **Tokens:** Sanctum Bearer tokens (8 h), with session fallback disabled. The SPA is served from the same
@@ -255,19 +303,23 @@ Architecture tests (Pest `arch()`) enforce four rules:
 - **Decision:** the import finishes once, so the SPA polls with back-off (0.5 s, 1 s, 2 s, then every 4 s).
   It stops by itself, pauses while the tab is hidden, and after repeated failures it says the connection was
   lost and offers to resume.
-- **Trade-off:** no WebSocket server to run. Laravel Reverb is the natural next step, and the
-  `ImportFinished` event is already in place.
+- **Trade-off:** no WebSocket server to run. Laravel Reverb is the natural next step, and `ImportFinished`
+  is already in place.
 
-**9. Tests run on MySQL, not SQLite.**
-- **Why:** aggregates, upserts, `CHECK` constraints and locks behave differently across engines.
-- **How:** tests use a separate schema on the same MySQL 8.4, and CI uses a MySQL service. One acceptance
-  test imports the real 15,000-row file and checks the expected totals.
+**9. Tests run on MySQL (and Redis), not SQLite.**
+- **Why:** aggregates, upserts, `CHECK` constraints and locks behave differently across engines, and so do
+  cache stores.
+- **How:** tests use a separate schema on the same MySQL 8.4 and Redis database 15, and CI uses MySQL and
+  Redis services. One acceptance test imports the real 15,000-row file and checks the expected totals.
 
-**10. Pages with numbers, read from an index.**
-- **Decision:** the list is ordered by `(occurred_on DESC, id DESC)` and reads the `(user_id, occurred_on, id)`
-  index backwards, so there is no sort in memory. The `id` tie-breaker keeps pages from shuffling.
-- **Trade-off:** offset pagination keeps "page N of M", which the screen needs. At millions of rows, cursor
-  pagination would be the move.
+**10. Deep pages read from the index (deferred join).**
+- **Order:** the list is ordered by `(occurred_on DESC, id DESC)`. The `id` tie-breaker keeps pages from
+  shuffling.
+- **Deferred join:** with plain `OFFSET`, MySQL fetched and discarded every row before the page (page 751:
+  68 ms). Now the page's ids come from the covering index `(user_id, occurred_on, id)` (or
+  `(user_id, type, occurred_on, id)` when filtering by type), and only those rows are read: 4 ms.
+- **What is left:** each page still costs one `COUNT(*)` over the user's rows, which "page N of M" needs.
+  At millions of rows, cursor pagination (no total, no jump to page N) would be the move.
 
 **11. Operations.**
 - **Scheduler:** expired tokens are pruned. An import with no progress for an hour is failed so it can be
@@ -282,21 +334,41 @@ Architecture tests (Pest `arch()`) enforce four rules:
 
 ## Measured performance
 
-Measured on a laptop (Docker on WSL2), with the provided 15,000-row file:
+Laptop, Docker on WSL2. Each row says how to reproduce it.
 
-| What | Result |
-|---|---|
-| Upload answered (202) | 0.08 – 0.24 s |
-| Whole import, 1 worker | 1.6 – 3.0 s (15 chunks of 1,000 rows, ~90 ms each) |
-| Whole import, 3 workers | 1.1 – 2.7 s, 0 deadlocks, 0 failed jobs |
-| Dashboard summary | 54 ms on a cold cache, 21 ms cached; `EXPLAIN`: *Using index* (index-only) |
-| Transaction list, filtered | 56 ms |
-| Transaction list, last page (offset ~15,000) | 58 ms; `EXPLAIN`: *Backward index scan*, no filesort |
+| What | Result | How |
+|---|---|---|
+| First `make up` on a clean machine | 2 min 41 s | CI job "Full stack" (GitHub runner, no cache) |
+| Upload answered (202) | 0.08 – 0.24 s | `curl -w '%{time_total}'` on `POST /api/v1/imports` |
+| Provided file (15,000 rows), 1 worker | 1.6 – 3.0 s, ~90 ms per 1,000-row chunk | `make fresh && make smoke` (prints the time); `make logs` shows `import.chunk … "ms"` |
+| Provided file, 3 workers | 1.1 – 2.7 s, 0 deadlocks, 0 failed jobs | `docker compose up -d --scale worker=3 --no-recreate`, then the same |
+| 200,000 rows, 1 worker vs 3 workers | 47 s vs 33 s | Same, with a larger generated file |
+| Dashboard summary | 54 ms on a cold cache, 21 ms cached | `curl -w '%{time_total}'` twice on `GET /api/v1/dashboard/summary` |
+| Dashboard query | Covering index lookup: the 15,004 rows are read from the index only, 8 ms in total | `EXPLAIN ANALYZE` below |
+| Transaction list, page 751 (offset 15,000) | 68 ms → **4 ms** with the deferred join; endpoint 25 ms | `EXPLAIN ANALYZE` below |
 
-- **Where the time goes:** before workers waited on the queue with a blocking pop (`block_for`), most of the
-  time was queue latency, not processing.
-- **Workers:** for this file size, one worker is enough. Extra workers pay off with larger files or several
-  imports at once.
+```sql
+-- Dashboard: "Covering index lookup on transactions using transactions_user_id_type_amount_cents_index"
+EXPLAIN ANALYZE SELECT SUM(CASE WHEN type = 'income' THEN amount_cents ELSE 0 END),
+                       SUM(CASE WHEN type = 'expense' THEN amount_cents ELSE 0 END), COUNT(*)
+FROM transactions WHERE user_id = 1;
+
+-- Page 751: the ids come from "Covering index lookup ... (reverse)", then 20 primary-key lookups
+EXPLAIN ANALYZE SELECT transactions.* FROM transactions
+INNER JOIN (SELECT id FROM transactions WHERE user_id = 1
+            ORDER BY occurred_on DESC, id DESC LIMIT 20 OFFSET 15000) AS page ON page.id = transactions.id
+ORDER BY transactions.occurred_on DESC, transactions.id DESC;
+```
+
+Run them with `docker compose exec mysql mysql -uapp -psecret financial_import`.
+
+**Reading the numbers:**
+- **Idle workers wake at once:** they wait on Redis with a blocking pop (`block_for`), so a new chunk starts
+  right away instead of after the default 3-second poll.
+- **Small files:** with 15,000 rows the time is mostly fixed cost (queue pickup, planning, finalize), so extra
+  workers barely change it.
+- **Large files:** at 200,000 rows, three workers cut 47 s to 33 s. What limits the rest is MySQL's write
+  throughput on this machine, not PHP.
 
 ## Limitations and next steps
 
@@ -305,8 +377,8 @@ Measured on a laptop (Docker on WSL2), with the provided 15,000-row file:
 - **Shared storage:** workers share a local volume with the uploaded file. Across several hosts, this would
   be S3 (or any object storage) with ranged reads per chunk.
 - **Real-time updates:** polling today. Reverb would broadcast `ImportFinished`.
-- **Indexes:** if listing by type becomes hot, add an index on `(user_id, type, occurred_on, id)`.
-- **Scale:** the queue runs on a single Redis instance. Horizon would add per-queue metrics and balancing.
+- **Pagination at scale:** cursor pagination instead of `COUNT(*)` with page numbers.
+- **Queue operations:** a single Redis instance. Horizon would add per-queue metrics and balancing.
 
 ## Troubleshooting
 
