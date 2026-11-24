@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\ImportController;
+use App\Http\Controllers\Api\V1\TransactionController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->name('api.v1.')->group(function (): void {
@@ -12,6 +14,9 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
     Route::middleware(['auth:sanctum', 'throttle:api'])->group(function (): void {
         Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::get('auth/me', [AuthController::class, 'me'])->name('auth.me');
+
+        Route::get('dashboard/summary', [DashboardController::class, 'summary'])->name('dashboard.summary');
+        Route::get('transactions', [TransactionController::class, 'index'])->name('transactions.index');
 
         Route::controller(ImportController::class)->prefix('imports')->name('imports.')->group(function (): void {
             Route::get('/', 'index')->name('index');
