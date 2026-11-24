@@ -2,6 +2,8 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '@/api/http'
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
+import { t } from '@/i18n'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
@@ -11,7 +13,7 @@ const route = useRoute()
 const email = ref('')
 const password = ref('')
 const submitting = ref(false)
-const error = ref<string | null>(route.query.expired ? 'Your session has expired. Please sign in again.' : null)
+const error = ref<string | null>(route.query.expired ? t('login.expired') : null)
 
 async function submit(): Promise<void> {
   submitting.value = true
@@ -24,9 +26,9 @@ async function submit(): Promise<void> {
     error.value =
       caught instanceof ApiError
         ? caught.status === 429
-          ? 'Too many attempts. Please wait a minute.'
+          ? t('login.throttled')
           : (caught.fieldError('email') ?? caught.message)
-        : 'Could not reach the server.'
+        : t('errors.network')
   } finally {
     submitting.value = false
   }
@@ -35,12 +37,15 @@ async function submit(): Promise<void> {
 
 <template>
   <div class="mx-auto mt-12 max-w-sm sm:mt-24">
-    <h1 class="text-2xl font-semibold tracking-tight">Financial Import</h1>
-    <p class="mt-1 text-sm text-slate-500">Sign in to import and review your transactions.</p>
+    <div class="flex items-start justify-between gap-4">
+      <h1 class="text-2xl font-semibold tracking-tight">{{ t('app.name') }}</h1>
+      <LanguageSwitcher />
+    </div>
+    <p class="mt-1 text-sm text-slate-500">{{ t('login.subtitle') }}</p>
 
     <form class="mt-6 space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm" @submit.prevent="submit">
       <div>
-        <label for="email" class="block text-sm font-medium">E-mail</label>
+        <label for="email" class="block text-sm font-medium">{{ t('login.email') }}</label>
         <input
           id="email"
           v-model="email"
@@ -51,7 +56,7 @@ async function submit(): Promise<void> {
         />
       </div>
       <div>
-        <label for="password" class="block text-sm font-medium">Password</label>
+        <label for="password" class="block text-sm font-medium">{{ t('login.password') }}</label>
         <input
           id="password"
           v-model="password"
@@ -67,9 +72,9 @@ async function submit(): Promise<void> {
         :disabled="submitting"
         class="w-full rounded-md bg-slate-900 px-4 py-2 font-medium text-white hover:bg-slate-800 disabled:opacity-60"
       >
-        {{ submitting ? 'Signing in…' : 'Sign in' }}
+        {{ submitting ? t('login.submitting') : t('login.submit') }}
       </button>
     </form>
-    <p class="mt-4 text-center text-xs text-slate-500">Demo account: demo@example.com / password</p>
+    <p class="mt-4 text-center text-xs text-slate-500">{{ t('login.demo') }}</p>
   </div>
 </template>

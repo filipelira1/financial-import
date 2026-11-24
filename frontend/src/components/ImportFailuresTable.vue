@@ -2,6 +2,8 @@
 import { onMounted, ref } from 'vue'
 import { api } from '@/api/endpoints'
 import { describeError } from '@/api/errors'
+import { t } from '@/i18n'
+import { translateReason } from '@/i18n/reasons'
 import PaginationBar from './PaginationBar.vue'
 import type { ImportFailure, Paginated } from '@/types/api'
 
@@ -33,24 +35,24 @@ onMounted(() => load())
       <table class="w-full text-left text-sm">
         <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
           <tr>
-            <th scope="col" class="px-3 py-2 font-medium">Line</th>
-            <th scope="col" class="px-3 py-2 font-medium">Content</th>
-            <th scope="col" class="px-3 py-2 font-medium">Why it was rejected</th>
+            <th scope="col" class="px-3 py-2 font-medium">{{ t('failures.line') }}</th>
+            <th scope="col" class="px-3 py-2 font-medium">{{ t('failures.content') }}</th>
+            <th scope="col" class="px-3 py-2 font-medium">{{ t('failures.reasons') }}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100" :class="{ 'opacity-50': loading }">
           <tr v-for="failure in page?.data ?? []" :key="failure.line_number" class="align-top">
             <td class="tabular px-3 py-2 font-medium">{{ failure.line_number }}</td>
-            <td class="max-w-xs px-3 py-2 font-mono text-xs break-all text-slate-600">{{ failure.raw || '(empty)' }}</td>
+            <td class="max-w-xs px-3 py-2 font-mono text-xs break-all text-slate-600">{{ failure.raw || t('failures.empty') }}</td>
             <td class="px-3 py-2">
               <ul class="space-y-0.5 text-rose-700">
-                <li v-for="reason in failure.errors" :key="reason">{{ reason }}</li>
+                <li v-for="reason in failure.errors" :key="reason">{{ translateReason(reason) }}</li>
               </ul>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
-    <PaginationBar v-if="page" :meta="page.meta" label="rejected lines" @page="load" />
+    <PaginationBar v-if="page" :meta="page.meta" :label="t('failures.label')" @page="load" />
   </div>
 </template>

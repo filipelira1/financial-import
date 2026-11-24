@@ -17,7 +17,7 @@ describe('http', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/auth/me?page=2', {
       method: 'GET',
-      headers: { Accept: 'application/json', Authorization: 'Bearer abc' },
+      headers: { Accept: 'application/json', 'Accept-Language': 'pt-BR', Authorization: 'Bearer abc' },
       body: undefined,
     })
   })

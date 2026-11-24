@@ -1,23 +1,24 @@
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-const integer = new Intl.NumberFormat('pt-BR')
+import { intlLocale } from '@/i18n'
+
+// Amounts are always Brazilian reais; only the separators follow the chosen language.
 
 /** 115346 -> "R$ 1.153,46". Cents stay integers until the very last step. */
 export function formatCents(cents: number): string {
-  return currency.format(cents / 100)
+  return new Intl.NumberFormat(intlLocale(), { style: 'currency', currency: 'BRL' }).format(cents / 100)
 }
 
 export function formatNumber(value: number): string {
-  return integer.format(value)
+  return new Intl.NumberFormat(intlLocale()).format(value)
 }
 
-/** "2026-01-31" -> "31/01/2026", without going through Date (no timezone shift). */
+/** "2026-01-31" -> "31/01/2026" (or "01/31/2026" in English), without going through Date (no timezone shift). */
 export function formatDate(isoDate: string): string {
   const [year, month, day] = isoDate.slice(0, 10).split('-')
-  return `${day}/${month}/${year}`
+  return intlLocale() === 'en-US' ? `${month}/${day}/${year}` : `${day}/${month}/${year}`
 }
 
 /** ISO timestamp -> "24/11/2026 14:05" in the browser's timezone. */
 export function formatDateTime(iso: string | null): string {
   if (!iso) return '—'
-  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso))
+  return new Intl.DateTimeFormat(intlLocale(), { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso))
 }

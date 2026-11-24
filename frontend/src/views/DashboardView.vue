@@ -5,6 +5,7 @@ import { describeError } from '@/api/errors'
 import ImportPanel from '@/components/ImportPanel.vue'
 import RecentImports from '@/components/RecentImports.vue'
 import SummaryCards from '@/components/SummaryCards.vue'
+import { t } from '@/i18n'
 import type { DashboardSummary, Import } from '@/types/api'
 
 const summary = ref<DashboardSummary | null>(null)
@@ -48,10 +49,10 @@ onMounted(async () => {
 
 <template>
   <div class="space-y-6">
-    <h1 class="text-xl font-semibold tracking-tight">Dashboard</h1>
+    <h1 class="text-xl font-semibold tracking-tight">{{ t('dashboard.title') }}</h1>
     <p v-if="error" class="flex flex-wrap items-center gap-2 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">
       {{ error }}
-      <button type="button" class="font-medium underline" @click="refresh">Try again</button>
+      <button type="button" class="font-medium underline" @click="refresh">{{ t('errors.tryAgain') }}</button>
     </p>
     <SummaryCards :summary="summary" />
     <ImportPanel ref="panel" @started="refresh" @updated="replaceImport" @finished="refresh" />

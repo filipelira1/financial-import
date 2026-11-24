@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { api } from '@/api/endpoints'
 import { ApiError } from '@/api/http'
 import { describeError } from '@/api/errors'
+import { t } from '@/i18n'
 import { usePolling } from './usePolling'
 import type { Import } from '@/types/api'
 
@@ -33,8 +34,11 @@ export function useImportTracker(onFinished: (finished: Import) => void, onUpdat
     } catch (caught) {
       if (caught instanceof ApiError) {
         uploadError.value = caught.fieldError('file') ?? caught.message
-        if (caught.status === 409 && typeof caught.body.import_id === 'number') duplicateOf.value = caught.body.import_id
-        if (caught.status === 429) uploadError.value = 'Too many uploads. Please wait a minute and try again.'
+        if (caught.status === 409 && typeof caught.body.import_id === 'number') {
+          duplicateOf.value = caught.body.import_id
+          uploadError.value = t('import.duplicate', { id: caught.body.import_id })
+        }
+        if (caught.status === 429) uploadError.value = t('import.throttled')
       } else {
         uploadError.value = describeError(caught)
       }

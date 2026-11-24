@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/http'
+import { setLocale } from '@/i18n'
 import type { Import } from '@/types/api'
 
 vi.mock('@/api/endpoints', () => ({ api: { uploadImport: vi.fn(), import: vi.fn() } }))
@@ -18,7 +19,10 @@ function anImport(overrides: Partial<Import> = {}): Import {
 const file = new File(['date,description,amount,type\n'], 'statement.csv')
 
 describe('useImportTracker', () => {
-  beforeEach(() => vi.useFakeTimers())
+  beforeEach(() => {
+    vi.useFakeTimers()
+    setLocale('en')
+  })
   afterEach(() => {
     vi.useRealTimers()
     vi.resetAllMocks()

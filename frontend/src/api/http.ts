@@ -3,6 +3,8 @@
  * The API lives on the same origin (nginx), so there is no CORS to configure.
  */
 
+import { locale } from '@/i18n'
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -35,7 +37,8 @@ export function configureHttp(options: { token: () => string | null; unauthorize
 }
 
 export async function http<T>(path: string, options: HttpOptions = {}): Promise<T> {
-  const headers: Record<string, string> = { Accept: 'application/json' }
+  // The API answers validation and error messages in the chosen language.
+  const headers: Record<string, string> = { Accept: 'application/json', 'Accept-Language': locale.value }
   const token = tokenProvider()
   if (token) headers.Authorization = `Bearer ${token}`
 

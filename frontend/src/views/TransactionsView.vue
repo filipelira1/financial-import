@@ -5,6 +5,7 @@ import { api } from '@/api/endpoints'
 import { describeError } from '@/api/errors'
 import PaginationBar from '@/components/PaginationBar.vue'
 import TransactionsTable from '@/components/TransactionsTable.vue'
+import { t } from '@/i18n'
 import type { Paginated, Transaction, TransactionFilters, TransactionType } from '@/types/api'
 
 const route = useRoute()
@@ -73,30 +74,30 @@ const field = 'mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm 
 
 <template>
   <div class="space-y-5">
-    <h1 class="text-xl font-semibold tracking-tight">Transactions</h1>
+    <h1 class="text-xl font-semibold tracking-tight">{{ t('transactions.title') }}</h1>
 
     <form
       class="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]"
       @submit.prevent="apply()"
     >
       <label class="block text-sm font-medium">
-        Type
+        {{ t('transactions.type') }}
         <select v-model="form.type" :class="field">
-          <option value="">All</option>
-          <option value="income">Income</option>
-          <option value="expense">Expense</option>
+          <option value="">{{ t('transactions.all') }}</option>
+          <option value="income">{{ t('transactions.income') }}</option>
+          <option value="expense">{{ t('transactions.expense') }}</option>
         </select>
       </label>
       <label class="block text-sm font-medium">
-        From
+        {{ t('transactions.from') }}
         <input v-model="form.from" type="date" :class="field" />
       </label>
       <label class="block text-sm font-medium">
-        To
+        {{ t('transactions.to') }}
         <input v-model="form.to" type="date" :min="form.from || undefined" :class="field" />
       </label>
       <label class="block text-sm font-medium">
-        Per page
+        {{ t('transactions.perPage') }}
         <select v-model.number="form.per_page" :class="field">
           <option :value="20">20</option>
           <option :value="50">50</option>
@@ -104,9 +105,9 @@ const field = 'mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm 
         </select>
       </label>
       <div class="flex items-end gap-2">
-        <button type="submit" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">Apply</button>
+        <button type="submit" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">{{ t('transactions.apply') }}</button>
         <button type="button" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50" @click="clear">
-          Clear
+          {{ t('transactions.clear') }}
         </button>
       </div>
     </form>
@@ -114,6 +115,6 @@ const field = 'mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm 
     <p v-if="error" class="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">{{ error }}</p>
 
     <TransactionsTable :items="result?.data ?? []" :loading="loading" />
-    <PaginationBar v-if="result" :meta="result.meta" label="transactions" @page="apply" />
+    <PaginationBar v-if="result" :meta="result.meta" :label="t('transactions.label')" @page="apply" />
   </div>
 </template>

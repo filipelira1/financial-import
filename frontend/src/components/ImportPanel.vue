@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { api } from '@/api/endpoints'
 import { describeError } from '@/api/errors'
 import { useImportTracker } from '@/composables/useImportTracker'
+import { t } from '@/i18n'
+import { translateReason } from '@/i18n/reasons'
 import { formatNumber } from '@/utils/format'
 import ImportFailuresTable from './ImportFailuresTable.vue'
 import ProgressBar from './ProgressBar.vue'
@@ -48,6 +50,9 @@ function onDrop(event: DragEvent): void {
   void send(event.dataTransfer?.files[0])
 }
 
+/** The help sentence with its code and emphasis kept as markup. */
+const helpParts = computed(() => t('import.help').split(/(\{\w+\})/))
+
 const tone = computed(() => {
   switch (current.value?.status) {
     case 'completed':
@@ -66,10 +71,14 @@ defineExpose({ open })
 
 <template>
   <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="import-title">
-    <h2 id="import-title" class="text-base font-semibold">Import transactions</h2>
+    <h2 id="import-title" class="text-base font-semibold">{{ t('import.title') }}</h2>
     <p class="mt-1 text-sm text-slate-500">
-      CSV with the columns <code class="rounded bg-slate-100 px-1">date,description,amount,type</code>. Amounts in cents, type
-      <em>Receita</em> or <em>Despesa</em>. Processing runs in the background.
+      <template v-for="(part, index) in helpParts" :key="index">
+        <code v-if="part === '{columns}'" class="rounded bg-slate-100 px-1">date,description,amount,type</code>
+        <em v-else-if="part === '{income}'">Receita</em>
+        <em v-else-if="part === '{expense}'">Despesa</em>
+        <template v-else>{{ part }}</template>
+      </template>
     </p>
 
     <label
@@ -79,8 +88,8 @@ defineExpose({ open })
       @dragleave.prevent="dragging = false"
       @drop.prevent="onDrop"
     >
-      <span class="text-sm font-medium">{{ uploading ? 'Uploading…' : 'Drop a CSV file here or click to choose' }}</span>
-      <span class="mt-1 text-xs text-slate-500">Up to 20 MB</span>
+      <span class="text-sm font-medium">{{ uploading ? t('import.uploading') : t('import.drop') }}</span>
+      <span class="mt-1 text-xs text-slate-500">{{ t('import.maxSize') }}</span>
       <input
         ref="input"
         type="file"
@@ -96,7 +105,7 @@ defineExpose({ open })
       <p v-if="uploadError" class="mt-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">
         {{ uploadError }}
         <button v-if="duplicateOf" type="button" class="ml-1 font-medium underline" @click="open(duplicateOf)">
-          Show import #{{ duplicateOf }}
+          {{ t('import.showDuplicate', { id: duplicateOf }) }}
         </button>
       </p>
 
@@ -111,20 +120,20 @@ defineExpose({ open })
           :value="current.progress"
           :indeterminate="current.status === 'pending'"
           :tone="tone"
-          :label="`Import #${current.id} progress`"
+          :label="t('import.progressLabel', { id: current.id })"
         />
         <p class="tabular text-sm text-slate-600">
-          <template v-if="current.total_rows === null">Waiting for a worker…</template>
+          <template v-if="current.total_rows === null">{{ t('import.waiting') }}</template>
           <template v-else>
-            {{ formatNumber(current.processed_rows) }} of {{ formatNumber(current.total_rows) }} rows ·
-            <span class="text-emerald-700">{{ formatNumber(current.imported_rows) }} imported</span> ·
-            <span :class="current.failed_rows ? 'text-rose-700' : ''">{{ formatNumber(current.failed_rows) }} rejected</span>
+            {{ t('import.rows', { processed: formatNumber(current.processed_rows), total: formatNumber(current.total_rows) }) }} ·
+            <span class="text-emerald-700">{{ t('import.imported', { count: formatNumber(current.imported_rows) }) }}</span> ·
+            <span :class="current.failed_rows ? 'text-rose-700' : ''">{{ t('import.rejected', { count: formatNumber(current.failed_rows) }) }}</span>
           </template>
         </p>
-        <p v-if="current.failure_reason" class="text-sm text-rose-700">{{ current.failure_reason }}</p>
+        <p v-if="current.failure_reason" class="text-sm text-rose-700">{{ translateReason(current.failure_reason) }}</p>
         <p v-if="connectionLost" class="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert" data-test="connection-lost">
-          Lost connection to the server, so this progress may be out of date. The import keeps running in the background.
-          <button type="button" class="ml-1 font-medium underline" @click="tracker.resume()">Resume</button>
+          {{ t('import.connectionLost') }}
+          <button type="button" class="ml-1 font-medium underline" @click="tracker.resume()">{{ t('import.resume') }}</button>
         </p>
         <button
           v-if="current.is_finished && current.failed_rows > 0"
@@ -132,7 +141,7 @@ defineExpose({ open })
           class="text-sm font-medium underline"
           @click="showFailures = !showFailures"
         >
-          {{ showFailures ? 'Hide' : 'Show' }} rejected lines
+          {{ showFailures ? t('import.hideRejected') : t('import.showRejected') }}
         </button>
         <ImportFailuresTable v-if="showFailures" :key="current.id" :import-id="current.id" />
       </div>

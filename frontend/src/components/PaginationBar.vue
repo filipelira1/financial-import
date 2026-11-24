@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { t } from '@/i18n'
 import { formatNumber } from '@/utils/format'
 import type { Paginated } from '@/types/api'
 
@@ -18,16 +19,23 @@ const button = 'min-w-9 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm
 </script>
 
 <template>
-  <nav class="flex flex-wrap items-center justify-between gap-3 text-sm" aria-label="Pagination">
+  <nav class="flex flex-wrap items-center justify-between gap-3 text-sm" :aria-label="t('pagination.label')">
     <p class="text-slate-500">
       <template v-if="meta.total > 0">
-        {{ formatNumber(meta.from ?? 0) }}–{{ formatNumber(meta.to ?? 0) }} of {{ formatNumber(meta.total) }} {{ label ?? 'items' }}
+        {{
+          t('pagination.range', {
+            from: formatNumber(meta.from ?? 0),
+            to: formatNumber(meta.to ?? 0),
+            total: formatNumber(meta.total),
+            label: label ?? t('pagination.items'),
+          })
+        }}
       </template>
-      <template v-else>No {{ label ?? 'items' }}</template>
+      <template v-else>{{ t('pagination.none', { label: label ?? t('pagination.items') }) }}</template>
     </p>
     <div v-if="meta.last_page > 1" class="flex flex-wrap items-center gap-1">
       <button type="button" :class="button" :disabled="meta.current_page === 1" @click="emit('page', meta.current_page - 1)">
-        Previous
+        {{ t('pagination.previous') }}
       </button>
       <template v-for="(page, index) in pages" :key="index">
         <span v-if="page === null" class="px-1 text-slate-400">…</span>
@@ -47,7 +55,7 @@ const button = 'min-w-9 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm
         :disabled="meta.current_page === meta.last_page"
         @click="emit('page', meta.current_page + 1)"
       >
-        Next
+        {{ t('pagination.next') }}
       </button>
     </div>
   </nav>

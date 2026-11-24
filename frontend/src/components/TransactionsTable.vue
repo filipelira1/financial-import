@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { formatCents, formatDate } from '@/utils/format'
 import type { Transaction } from '@/types/api'
 
@@ -10,10 +11,10 @@ defineProps<{ items: Transaction[]; loading?: boolean }>()
     <table class="w-full text-left text-sm">
       <thead class="border-b border-slate-200 bg-slate-50 text-xs text-slate-500 uppercase">
         <tr>
-          <th scope="col" class="px-4 py-2.5 font-medium">Date</th>
-          <th scope="col" class="px-4 py-2.5 font-medium">Description</th>
-          <th scope="col" class="px-4 py-2.5 font-medium">Type</th>
-          <th scope="col" class="px-4 py-2.5 text-right font-medium">Amount</th>
+          <th scope="col" class="px-4 py-2.5 font-medium">{{ t('transactions.date') }}</th>
+          <th scope="col" class="px-4 py-2.5 font-medium">{{ t('transactions.description') }}</th>
+          <th scope="col" class="px-4 py-2.5 font-medium">{{ t('transactions.type') }}</th>
+          <th scope="col" class="px-4 py-2.5 text-right font-medium">{{ t('transactions.amount') }}</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-100" :class="{ 'opacity-50': loading }">
@@ -25,7 +26,7 @@ defineProps<{ items: Transaction[]; loading?: boolean }>()
               class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
               :class="transaction.type === 'income' ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'"
             >
-              {{ transaction.type === 'income' ? 'Income' : 'Expense' }}
+              {{ transaction.type === 'income' ? t('transactions.income') : t('transactions.expense') }}
             </span>
           </td>
           <td
@@ -36,7 +37,7 @@ defineProps<{ items: Transaction[]; loading?: boolean }>()
           </td>
         </tr>
         <tr v-if="!loading && items.length === 0">
-          <td colspan="4" class="px-4 py-10 text-center text-slate-500">No transactions match these filters.</td>
+          <td colspan="4" class="px-4 py-10 text-center text-slate-500">{{ t('transactions.empty') }}</td>
         </tr>
       </tbody>
     </table>
