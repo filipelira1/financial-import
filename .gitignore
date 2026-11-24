@@ -1,0 +1,11 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+*Zone.Identifier
+.idea/
+.vscode/
+*.swp
+
+# Local environment
+.env
+docker-compose.override.yml
