@@ -9,6 +9,7 @@ use App\Http\Requests\Api\V1\StoreImportRequest;
 use App\Http\Resources\ImportFailureResource;
 use App\Http\Resources\ImportResource;
 use App\Models\Import;
+use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -28,8 +29,9 @@ class ImportController extends Controller
     /**
      * Upload a CSV file. It is processed in the background: poll the returned import for progress.
      *
-     * @response 202 ImportResource
+     * @status 202
      */
+    #[Response(409, 'The same file was already uploaded by this user', type: 'array{message: string, import_id: int}')]
     public function store(StoreImportRequest $request, StartImportAction $start): JsonResponse
     {
         $import = $start->execute($request->user(), $request->file('file'));
@@ -43,6 +45,7 @@ class ImportController extends Controller
     /**
      * Status and progress of one import.
      */
+    #[Response(404, 'Not found, or owned by another user', type: 'array{message: string}')]
     public function show(Request $request, int $import): ImportResource
     {
         return new ImportResource($this->ownedImport($request, $import));
@@ -51,6 +54,7 @@ class ImportController extends Controller
     /**
      * Lines of the file that were rejected, with the reasons.
      */
+    #[Response(404, 'Not found, or owned by another user', type: 'array{message: string}')]
     public function failures(Request $request, int $import): AnonymousResourceCollection
     {
         return ImportFailureResource::collection(
@@ -61,8 +65,10 @@ class ImportController extends Controller
     /**
      * Run a failed import again. Rows already stored are not duplicated.
      *
-     * @response 202 ImportResource
+     * @status 202
      */
+    #[Response(404, 'Not found, or owned by another user', type: 'array{message: string}')]
+    #[Response(409, 'Only a failed import can be retried', type: 'array{message: string}')]
     public function retry(Request $request, int $import, RetryImportAction $retry): JsonResponse
     {
         $import = $retry->execute($this->ownedImport($request, $import));

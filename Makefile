@@ -16,6 +16,10 @@ test: ## Run the test suite
 lint: ## Check code style (Pint)
 	$(COMPOSE) exec app ./vendor/bin/pint --test
 
+docs: ## Regenerate docs/openapi.json from the code (Scramble)
+	$(COMPOSE) exec app php artisan scramble:export --path=storage/app/openapi.json
+	mv backend/storage/app/openapi.json docs/openapi.json
+
 logs: ## Follow app and worker logs
 	$(COMPOSE) logs -f app worker
 
@@ -28,4 +32,4 @@ shell: ## Open a shell in the app container
 fresh: ## Recreate the database with the demo user
 	$(COMPOSE) exec app php artisan migrate:fresh --seed --force
 
-.PHONY: help up down test lint logs restart-worker shell fresh
+.PHONY: help up down test lint docs logs restart-worker shell fresh
