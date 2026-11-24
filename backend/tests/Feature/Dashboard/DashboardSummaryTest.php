@@ -3,6 +3,8 @@
 use App\Application\Finance\GetDashboardSummaryAction;
 use App\Domain\Finance\Events\TransactionsImported;
 use App\Domain\Finance\FinancialSummary;
+use App\Domain\Import\Events\ImportFinished;
+use App\Domain\Import\ImportStatus;
 use App\Infrastructure\Cache\DashboardSummaryCache;
 use App\Jobs\ProcessImportJob;
 use App\Models\Transaction;
@@ -85,6 +87,20 @@ it('is refreshed when an import stores new transactions', function () {
     event(new TransactionsImported($this->user->id, 1, 1));
 
     $this->getJson('/api/v1/dashboard/summary')->assertJsonPath('data.income_cents', 6_000);
+});
+
+it('is refreshed when an import finishes, even if a chunk event was lost', function () {
+    Sanctum::actingAs($this->user);
+    $this->getJson('/api/v1/dashboard/summary')->assertJsonPath('data.income_cents', 0);
+
+    // A worker died after committing a chunk but before announcing it; the retried chunk
+    // inserted nothing new, so no TransactionsImported event was ever dispatched.
+    Transaction::factory()->for($this->user)->income(9_000)->createQuietly();
+    $this->getJson('/api/v1/dashboard/summary')->assertJsonPath('data.income_cents', 0);
+
+    event(new ImportFinished($this->user->id, 1, ImportStatus::Completed));
+
+    $this->getJson('/api/v1/dashboard/summary')->assertJsonPath('data.income_cents', 9_000);
 });
 
 it('is refreshed when a single transaction is saved or deleted', function () {
