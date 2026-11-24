@@ -2,7 +2,7 @@
 COMPOSE := docker compose
 
 help: ## List the available commands
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 up: ## Build and start the stack (first run installs dependencies, migrates and seeds)
 	HOST_UID=$$(id -u) HOST_GID=$$(id -g) $(COMPOSE) up -d --build --wait
