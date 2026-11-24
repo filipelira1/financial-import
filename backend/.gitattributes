@@ -9,3 +9,6 @@
 /.github export-ignore
 CHANGELOG.md export-ignore
 .styleci.yml export-ignore
+
+# Test fixtures are byte-exact (BOM, CRLF and malformed files must survive checkout).
+tests/fixtures/** -text
