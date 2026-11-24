@@ -37,5 +37,6 @@ shell: ## Open a shell in the app container
 
 fresh: ## Recreate the database with the demo user
 	$(COMPOSE) exec app php artisan migrate:fresh --seed --force
+	$(COMPOSE) exec app php artisan cache:clear
 
 .PHONY: help up down test smoke test-frontend lint docs logs restart-worker shell fresh

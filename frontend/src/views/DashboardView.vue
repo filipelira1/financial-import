@@ -23,6 +23,11 @@ async function refresh(): Promise<void> {
   }
 }
 
+/** Keep the "Recent imports" row in step with the progress shown above it. */
+function replaceImport(item: Import): void {
+  imports.value = imports.value.map((existing) => (existing.id === item.id ? item : existing))
+}
+
 async function retry(item: Import): Promise<void> {
   try {
     await api.retryImport(item.id)
@@ -49,7 +54,7 @@ onMounted(async () => {
       <button type="button" class="font-medium underline" @click="refresh">Try again</button>
     </p>
     <SummaryCards :summary="summary" />
-    <ImportPanel ref="panel" @started="refresh" @finished="refresh" />
+    <ImportPanel ref="panel" @started="refresh" @updated="replaceImport" @finished="refresh" />
     <RecentImports :items="imports" @select="(item) => panel?.open(item.id)" @retry="retry" />
   </div>
 </template>

@@ -9,9 +9,12 @@ import ProgressBar from './ProgressBar.vue'
 import StatusBadge from './StatusBadge.vue'
 import type { Import } from '@/types/api'
 
-const emit = defineEmits<{ finished: [item: Import]; started: [item: Import] }>()
+const emit = defineEmits<{ finished: [item: Import]; started: [item: Import]; updated: [item: Import] }>()
 
-const tracker = useImportTracker((finished) => emit('finished', finished))
+const tracker = useImportTracker(
+  (finished) => emit('finished', finished),
+  (item) => emit('updated', item),
+)
 const { current, uploading, uploadError, duplicateOf, connectionLost } = tracker
 const openError = ref<string | null>(null)
 

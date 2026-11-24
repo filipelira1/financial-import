@@ -8,7 +8,7 @@ import type { Import } from '@/types/api'
 /**
  * Uploads a file and follows its import until the queue has finished it.
  */
-export function useImportTracker(onFinished: (finished: Import) => void) {
+export function useImportTracker(onFinished: (finished: Import) => void, onUpdate?: (item: Import) => void) {
   const current = ref<Import | null>(null)
   const uploading = ref(false)
   const uploadError = ref<string | null>(null)
@@ -18,6 +18,7 @@ export function useImportTracker(onFinished: (finished: Import) => void) {
     isDone: (result) => result.is_finished,
     onResult: (result) => {
       current.value = result
+      onUpdate?.(result)
       if (result.is_finished) onFinished(result)
     },
   })

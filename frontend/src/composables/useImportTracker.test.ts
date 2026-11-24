@@ -30,11 +30,13 @@ describe('useImportTracker', () => {
       .mockResolvedValueOnce(anImport({ status: 'processing', total_rows: 10, processed_rows: 5, progress: 50 }))
       .mockResolvedValueOnce(anImport({ status: 'completed', is_finished: true, progress: 100 }))
     const onFinished = vi.fn()
-    const tracker = useImportTracker(onFinished)
+    const onUpdate = vi.fn()
+    const tracker = useImportTracker(onFinished, onUpdate)
 
     await tracker.upload(file)
     await vi.advanceTimersByTimeAsync(500)
     expect(tracker.current.value?.progress).toBe(50)
+    expect(onUpdate).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'processing', progress: 50 }))
 
     await vi.advanceTimersByTimeAsync(60_000)
     expect(tracker.current.value?.status).toBe('completed')
