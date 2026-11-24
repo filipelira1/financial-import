@@ -46,10 +46,10 @@ class StoreImportRequest extends FormRequest
                     $reader = CsvReader::open($file->getRealPath())->requireColumns(TransactionRowParser::COLUMNS);
 
                     if (! $reader->hasDataRows()) {
-                        $validator->errors()->add('file', 'The file has a header but no data rows.');
+                        $validator->errors()->add('file', __('The file has a header but no data rows.'));
                     }
                 } catch (InvalidCsvFile $e) {
-                    $validator->errors()->add('file', $e->getMessage());
+                    $validator->errors()->add('file', __($e->template, $e->replace));
                 }
             },
         ];

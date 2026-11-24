@@ -75,11 +75,10 @@ final class CsvReader
         $missing = array_values(array_diff($required, $this->columns));
 
         if ($missing !== []) {
-            throw new InvalidCsvFile(sprintf(
-                'Missing required column(s): %s. Expected header: %s.',
-                implode(', ', $missing),
-                implode(',', $required),
-            ));
+            throw new InvalidCsvFile('Missing required column(s): :missing. Expected header: :expected.', [
+                'missing' => implode(', ', $missing),
+                'expected' => implode(',', $required),
+            ]);
         }
 
         return $this;

@@ -1,0 +1,10 @@
+{
+    "Missing required column(s): :missing. Expected header: :expected.": "Faltam as colunas obrigatórias: :missing. Cabeçalho esperado: :expected.",
+    "Not found.": "Não encontrado.",
+    "Only a failed import can be retried.": "Só uma importação que falhou pode ser repetida.",
+    "The file could not be opened.": "Não foi possível abrir o arquivo.",
+    "The file has a header but no data rows.": "O arquivo tem cabeçalho, mas nenhuma linha de dados.",
+    "The file is empty.": "O arquivo está vazio.",
+    "The header has duplicated column names.": "O cabeçalho tem nomes de coluna repetidos.",
+    "This file was already uploaded (import #:id).": "Este arquivo já foi enviado (importação #:id)."
+}
