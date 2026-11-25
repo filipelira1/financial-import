@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { api } from '@/api/endpoints'
 import { describeError } from '@/api/errors'
-import { t } from '@/i18n'
-import { translateReason } from '@/i18n/reasons'
+import { locale, t } from '@/i18n'
 import PaginationBar from './PaginationBar.vue'
 import type { ImportFailure, Paginated } from '@/types/api'
 
@@ -26,6 +25,8 @@ async function load(number = 1): Promise<void> {
 }
 
 onMounted(() => load())
+// The API translates the reasons, so a language switch reloads the page being shown.
+watch(locale, () => load(page.value?.meta.current_page ?? 1))
 </script>
 
 <template>
@@ -46,7 +47,7 @@ onMounted(() => load())
             <td class="max-w-xs px-3 py-2 font-mono text-xs break-all text-slate-600">{{ failure.raw || t('failures.empty') }}</td>
             <td class="px-3 py-2">
               <ul class="space-y-0.5 text-rose-700">
-                <li v-for="reason in failure.errors" :key="reason">{{ translateReason(reason) }}</li>
+                <li v-for="reason in failure.errors" :key="reason">{{ reason }}</li>
               </ul>
             </td>
           </tr>

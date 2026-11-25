@@ -29,6 +29,7 @@ export const en = {
   'errors.server': 'The server had a problem. Please try again in a moment.',
   'errors.generic': 'Something went wrong. Please try again.',
   'errors.tryAgain': 'Try again',
+  'common.downloading': 'Preparing the file…',
 
   'dashboard.title': 'Dashboard',
   'summary.label': 'Summary',
@@ -37,9 +38,14 @@ export const en = {
   'summary.balance': 'Balance',
   'summary.transactions': (p: Count) => `${p.count} transactions`,
 
+  'monthly.title': 'Income and expenses per month',
+  'monthly.legend': 'Legend',
+  'monthly.month': 'Month',
+  'monthly.empty': 'The chart appears after the first import.',
+
   'import.title': 'Import transactions',
   'import.help': 'CSV with the columns {columns}. Amounts in cents, type {income} or {expense}. Processing runs in the background.',
-  'import.drop': 'Drop a CSV file here or click to choose',
+  'import.drop': 'Drop one or more CSV files here or click to choose',
   'import.uploading': 'Uploading…',
   'import.maxSize': 'Up to 20 MB',
   'import.throttled': 'Too many uploads. Please wait a minute and try again.',
@@ -54,6 +60,11 @@ export const en = {
   'import.resume': 'Resume',
   'import.showRejected': 'Show rejected lines',
   'import.hideRejected': 'Hide rejected lines',
+  'import.downloadRejected': 'Download rejected lines (CSV)',
+  'import.batchSent': (p: { sent: number; total: number }) =>
+    p.sent === 0 ? `None of the ${p.total} files was sent.` : `${p.sent} of ${p.total} files sent. Each one is processed in turn.`,
+  'import.tooManyFiles': (p: { max: number; skipped: number }) =>
+    `Up to ${p.max} files at a time: ${p.skipped} ${p.skipped === 1 ? 'file was' : 'files were'} not sent. Send ${p.skipped === 1 ? 'it' : 'them'} again in a minute.`,
 
   'status.pending': 'Queued',
   'status.processing': 'Processing',
@@ -85,9 +96,13 @@ export const en = {
   'transactions.expense': 'Expense',
   'transactions.from': 'From',
   'transactions.to': 'To',
+  'transactions.search': 'Description',
+  'transactions.searchPlaceholder': 'e.g. Rent',
   'transactions.perPage': 'Per page',
   'transactions.apply': 'Apply',
   'transactions.clear': 'Clear',
+  'transactions.export': 'Export CSV',
+  'transactions.exportHint': 'Downloads every transaction matching the filters, in the import format.',
   'transactions.date': 'Date',
   'transactions.description': 'Description',
   'transactions.amount': 'Amount',
@@ -127,6 +142,7 @@ export const pt = {
   'errors.server': 'O servidor teve um problema. Tente de novo em instantes.',
   'errors.generic': 'Algo deu errado. Tente de novo.',
   'errors.tryAgain': 'Tentar de novo',
+  'common.downloading': 'Preparando o arquivo…',
 
   'dashboard.title': 'Painel',
   'summary.label': 'Resumo',
@@ -135,9 +151,14 @@ export const pt = {
   'summary.balance': 'Saldo',
   'summary.transactions': (p: Count) => `${p.count} transações`,
 
+  'monthly.title': 'Receitas e despesas por mês',
+  'monthly.legend': 'Legenda',
+  'monthly.month': 'Mês',
+  'monthly.empty': 'O gráfico aparece depois da primeira importação.',
+
   'import.title': 'Importar transações',
   'import.help': 'CSV com as colunas {columns}. Valores em centavos, tipo {income} ou {expense}. O processamento roda em segundo plano.',
-  'import.drop': 'Arraste um arquivo CSV para cá ou clique para escolher',
+  'import.drop': 'Arraste um ou mais arquivos CSV para cá ou clique para escolher',
   'import.uploading': 'Enviando…',
   'import.maxSize': 'Até 20 MB',
   'import.throttled': 'Muitos envios. Aguarde um minuto e tente de novo.',
@@ -152,6 +173,11 @@ export const pt = {
   'import.resume': 'Retomar',
   'import.showRejected': 'Ver linhas recusadas',
   'import.hideRejected': 'Esconder linhas recusadas',
+  'import.downloadRejected': 'Baixar linhas recusadas (CSV)',
+  'import.batchSent': (p: { sent: number; total: number }) =>
+    p.sent === 0 ? `Nenhum dos ${p.total} arquivos foi enviado.` : `${p.sent} de ${p.total} arquivos enviados. Cada um é processado na sua vez.`,
+  'import.tooManyFiles': (p: { max: number; skipped: number }) =>
+    `Até ${p.max} arquivos por vez: ${p.skipped} ${p.skipped === 1 ? 'arquivo não foi enviado' : 'arquivos não foram enviados'}. Envie de novo daqui a um minuto.`,
 
   'status.pending': 'Na fila',
   'status.processing': 'Processando',
@@ -183,9 +209,13 @@ export const pt = {
   'transactions.expense': 'Despesa',
   'transactions.from': 'De',
   'transactions.to': 'Até',
+  'transactions.search': 'Descrição',
+  'transactions.searchPlaceholder': 'ex.: Aluguel',
   'transactions.perPage': 'Por página',
   'transactions.apply': 'Aplicar',
   'transactions.clear': 'Limpar',
+  'transactions.export': 'Exportar CSV',
+  'transactions.exportHint': 'Baixa todas as transações dos filtros aplicados, no mesmo formato da importação.',
   'transactions.date': 'Data',
   'transactions.description': 'Descrição',
   'transactions.amount': 'Valor',

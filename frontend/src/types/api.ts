@@ -25,6 +25,15 @@ export interface DashboardSummary {
   transaction_count: number
 }
 
+export interface MonthlyTotals {
+  /** YYYY-MM */
+  month: string
+  income_cents: number
+  expense_cents: number
+  balance_cents: number
+  transaction_count: number
+}
+
 export interface Transaction {
   id: number
   occurred_on: string
@@ -72,6 +81,8 @@ export interface TransactionFilters {
   type?: TransactionType
   from?: string
   to?: string
+  /** Part of the description, case-insensitive */
+  q?: string
   page?: number
   per_page?: number
 }

@@ -3,26 +3,43 @@ import { onMounted, ref } from 'vue'
 import { api } from '@/api/endpoints'
 import { describeError } from '@/api/errors'
 import ImportPanel from '@/components/ImportPanel.vue'
+import MonthlyChart from '@/components/MonthlyChart.vue'
 import RecentImports from '@/components/RecentImports.vue'
 import SummaryCards from '@/components/SummaryCards.vue'
+import { usePolling } from '@/composables/usePolling'
 import { t } from '@/i18n'
-import type { DashboardSummary, Import } from '@/types/api'
+import type { DashboardSummary, Import, MonthlyTotals } from '@/types/api'
 
 const summary = ref<DashboardSummary | null>(null)
+const monthly = ref<MonthlyTotals[] | null>(null)
 const imports = ref<Import[]>([])
 const panel = ref<InstanceType<typeof ImportPanel> | null>(null)
 const error = ref<string | null>(null)
 
 async function refresh(): Promise<void> {
   try {
-    const [totals, page] = await Promise.all([api.summary(), api.imports()])
+    const [totals, months, page] = await Promise.all([api.summary(), api.monthly(), api.imports()])
     summary.value = totals
+    monthly.value = months
     imports.value = page.data
     error.value = null
+    if (page.data.some((item) => !item.is_finished)) listPolling.start()
   } catch (caught) {
     error.value = describeError(caught)
   }
 }
+
+/**
+ * Several files may be queued at once while the panel follows only one: keep the list (and the
+ * totals, once everything is done) up to date until every import in it has finished.
+ */
+const listPolling = usePolling(() => api.imports(), {
+  isDone: (page) => page.data.every((item) => item.is_finished),
+  onResult: (page) => {
+    imports.value = page.data
+    if (page.data.every((item) => item.is_finished)) void refresh()
+  },
+})
 
 /** Keep the "Recent imports" row in step with the progress shown above it. */
 function replaceImport(item: Import): void {
@@ -55,6 +72,7 @@ onMounted(async () => {
       <button type="button" class="font-medium underline" @click="refresh">{{ t('errors.tryAgain') }}</button>
     </p>
     <SummaryCards :summary="summary" />
+    <MonthlyChart :months="monthly" />
     <ImportPanel ref="panel" @started="refresh" @updated="replaceImport" @finished="refresh" />
     <RecentImports :items="imports" @select="(item) => panel?.open(item.id)" @retry="retry" />
   </div>

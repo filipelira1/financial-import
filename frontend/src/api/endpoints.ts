@@ -1,7 +1,8 @@
-import { http } from './http'
+import { download, http } from './http'
 import type {
   AccessToken,
   DashboardSummary,
+  MonthlyTotals,
   Import,
   ImportFailure,
   Paginated,
@@ -23,9 +24,14 @@ export const api = {
   me: () => http<Item<User>>('/auth/me').then((response) => response.data),
 
   summary: () => http<Item<DashboardSummary>>('/dashboard/summary').then((response) => response.data),
+  monthly: () => http<{ data: MonthlyTotals[] }>('/dashboard/monthly').then((response) => response.data),
 
   transactions: (filters: TransactionFilters) =>
     http<Paginated<Transaction>>('/transactions', { query: { ...filters } }),
+  exportTransactions: (filters: TransactionFilters) => {
+    const { page: _page, per_page: _perPage, ...query } = filters
+    return download('/transactions/export', { ...query }, 'transactions.csv')
+  },
 
   uploadImport: (file: File) => {
     const form = new FormData()
@@ -35,5 +41,6 @@ export const api = {
   imports: (page = 1) => http<Paginated<Import>>('/imports', { query: { page } }),
   import: (id: number) => http<Item<Import>>(`/imports/${id}`).then((response) => response.data),
   importFailures: (id: number, page = 1) => http<Paginated<ImportFailure>>(`/imports/${id}/failures`, { query: { page } }),
+  exportImportFailures: (id: number) => download(`/imports/${id}/failures/export`, undefined, `import-${id}-rejected-lines.csv`),
   retryImport: (id: number) => http<Item<Import>>(`/imports/${id}/retry`, { method: 'POST' }).then((r) => r.data),
 }

@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { api } from '@/api/endpoints'
 import { describeError } from '@/api/errors'
 import { useImportTracker } from '@/composables/useImportTracker'
-import { t } from '@/i18n'
-import { translateReason } from '@/i18n/reasons'
+import { locale, t } from '@/i18n'
 import { formatNumber } from '@/utils/format'
 import ImportFailuresTable from './ImportFailuresTable.vue'
 import ProgressBar from './ProgressBar.vue'
@@ -27,17 +26,81 @@ const statusBox = ref<HTMLElement | null>(null)
 const highlight = ref(false)
 let highlightTimer: number | undefined
 
-async function send(file: File | undefined): Promise<void> {
-  if (!file) return
+/** The upload limit is 10 per minute, so one drop never sends more than that. */
+const MAX_FILES = 10
+
+interface BatchResult {
+  name: string
+  error: string | null
+  duplicateOf: number | null
+}
+
+const batch = ref<BatchResult[]>([])
+const skipped = ref(0)
+const batchProblems = computed(() => batch.value.filter((result) => result.error))
+
+/**
+ * Send one or more files. Each becomes its own import, queued one after the other; the panel
+ * follows the last one sent and "Recent imports" lists them all.
+ */
+async function send(list: FileList | File[] | null | undefined): Promise<void> {
+  const files = Array.from(list ?? [])
+  if (files.length === 0) return
   showFailures.value = false
-  await tracker.upload(file)
-  if (current.value) emit('started', current.value)
+  downloadError.value = null
+  batch.value = []
+  skipped.value = Math.max(0, files.length - MAX_FILES)
+
+  const sending = files.slice(0, MAX_FILES)
+  const results: BatchResult[] = []
+
+  for (const file of sending) {
+    const before = current.value
+    await tracker.upload(file)
+    if (current.value && current.value !== before && !uploadError.value) emit('started', current.value)
+    results.push({ name: file.name, error: uploadError.value, duplicateOf: duplicateOf.value })
+  }
+
+  if (sending.length > 1) {
+    // Shown once every file has been sent; problems are listed per file, not as a single message.
+    batch.value = results
+    uploadError.value = null
+    duplicateOf.value = null
+  }
   if (input.value) input.value.value = ''
 }
+
+const downloading = ref(false)
+const downloadError = ref<string | null>(null)
+
+async function downloadRejected(): Promise<void> {
+  if (!current.value) return
+  downloading.value = true
+  downloadError.value = null
+  try {
+    await api.exportImportFailures(current.value.id)
+  } catch (caught) {
+    downloadError.value = describeError(caught)
+  } finally {
+    downloading.value = false
+  }
+}
+
+// The API translates stored reasons: a language switch reloads a finished import being shown
+// (a running one is refreshed by the polling within a second anyway).
+watch(locale, async () => {
+  if (!current.value?.is_finished) return
+  try {
+    tracker.track(await api.import(current.value.id))
+  } catch {
+    // Keep what is on screen; the next action will report a real problem.
+  }
+})
 
 /** Show an existing import here (and follow it if it is still running). */
 async function open(id: number): Promise<void> {
   showFailures.value = false
+  downloadError.value = null
   openError.value = null
   try {
     const item = await api.import(id)
@@ -70,7 +133,7 @@ function reveal(): void {
 
 function onDrop(event: DragEvent): void {
   dragging.value = false
-  void send(event.dataTransfer?.files[0])
+  void send(event.dataTransfer?.files)
 }
 
 /** The help sentence with its code and emphasis kept as markup. */
@@ -117,10 +180,11 @@ defineExpose({ open })
         ref="input"
         type="file"
         accept=".csv,text/csv"
+        multiple
         class="sr-only"
         :disabled="uploading"
         data-test="file-input"
-        @change="send(($event.target as HTMLInputElement).files?.[0])"
+        @change="send(($event.target as HTMLInputElement).files)"
       />
     </label>
 
@@ -130,6 +194,21 @@ defineExpose({ open })
         <button v-if="duplicateOf" type="button" class="ml-1 font-medium underline" @click="open(duplicateOf)">
           {{ t('import.showDuplicate', { id: duplicateOf }) }}
         </button>
+      </p>
+
+      <div v-if="batch.length" class="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm" data-test="batch-result">
+        <p class="font-medium">{{ t('import.batchSent', { sent: batch.length - batchProblems.length, total: batch.length }) }}</p>
+        <ul v-if="batchProblems.length" class="mt-1 space-y-0.5 text-rose-800" role="alert">
+          <li v-for="problem in batchProblems" :key="problem.name">
+            <span class="font-medium">{{ problem.name }}:</span> {{ problem.error }}
+            <button v-if="problem.duplicateOf" type="button" class="ml-1 font-medium underline" @click="open(problem.duplicateOf)">
+              {{ t('import.showDuplicate', { id: problem.duplicateOf }) }}
+            </button>
+          </li>
+        </ul>
+      </div>
+      <p v-if="skipped" class="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">
+        {{ t('import.tooManyFiles', { max: MAX_FILES, skipped }) }}
       </p>
 
       <p v-if="openError" class="mt-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">{{ openError }}</p>
@@ -160,19 +239,20 @@ defineExpose({ open })
             <span :class="current.failed_rows ? 'text-rose-700' : ''">{{ t('import.rejected', { count: formatNumber(current.failed_rows) }) }}</span>
           </template>
         </p>
-        <p v-if="current.failure_reason" class="text-sm text-rose-700">{{ translateReason(current.failure_reason) }}</p>
+        <p v-if="current.failure_reason" class="text-sm text-rose-700">{{ current.failure_reason }}</p>
         <p v-if="connectionLost" class="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert" data-test="connection-lost">
           {{ t('import.connectionLost') }}
           <button type="button" class="ml-1 font-medium underline" @click="tracker.resume()">{{ t('import.resume') }}</button>
         </p>
-        <button
-          v-if="current.is_finished && current.failed_rows > 0"
-          type="button"
-          class="text-sm font-medium underline"
-          @click="showFailures = !showFailures"
-        >
-          {{ showFailures ? t('import.hideRejected') : t('import.showRejected') }}
-        </button>
+        <div v-if="current.is_finished && current.failed_rows > 0" class="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <button type="button" class="text-sm font-medium underline" @click="showFailures = !showFailures">
+            {{ showFailures ? t('import.hideRejected') : t('import.showRejected') }}
+          </button>
+          <button type="button" class="text-sm font-medium underline disabled:opacity-50" :disabled="downloading" data-test="download-rejected" @click="downloadRejected">
+            {{ downloading ? t('common.downloading') : t('import.downloadRejected') }}
+          </button>
+        </div>
+        <p v-if="downloadError" class="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">{{ downloadError }}</p>
         <ImportFailuresTable v-if="showFailures" :key="current.id" :import-id="current.id" />
       </div>
     </div>

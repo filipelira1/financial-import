@@ -36,11 +36,17 @@ export function configureHttp(options: { token: () => string | null; unauthorize
   onUnauthorized = options.unauthorized
 }
 
-export async function http<T>(path: string, options: HttpOptions = {}): Promise<T> {
+function baseHeaders(): Record<string, string> {
   // The API answers validation and error messages in the chosen language.
   const headers: Record<string, string> = { Accept: 'application/json', 'Accept-Language': locale.value }
   const token = tokenProvider()
   if (token) headers.Authorization = `Bearer ${token}`
+  return headers
+}
+
+export async function http<T>(path: string, options: HttpOptions = {}): Promise<T> {
+  const headers = baseHeaders()
+  const token = headers.Authorization
 
   let body: BodyInit | undefined
   if (options.body instanceof FormData) {
@@ -60,17 +66,54 @@ export async function http<T>(path: string, options: HttpOptions = {}): Promise<
 
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>
 
-  if (!response.ok) {
-    if (response.status === 401 && token) onUnauthorized()
-    throw new ApiError(
-      response.status,
-      typeof payload.message === 'string' ? payload.message : `Request failed (${response.status})`,
-      (payload.errors as Record<string, string[]> | undefined) ?? {},
-      payload,
-    )
-  }
+  if (!response.ok) throw toApiError(response, payload, Boolean(token))
 
   return payload as T
+}
+
+/**
+ * Download a file from the API and hand it to the browser as a save.
+ * The API needs the Bearer token, so a plain link cannot do it: the file is fetched, then saved
+ * from memory under the name the server gave (Content-Disposition).
+ */
+export async function download(path: string, query?: Record<string, string | number | undefined>, fallbackName = 'download'): Promise<void> {
+  const headers = baseHeaders()
+  const response = await fetch(`/api/v1${path}${toQueryString(query)}`, { headers })
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>
+    throw toApiError(response, payload, Boolean(headers.Authorization))
+  }
+
+  const name = fileNameFrom(response.headers.get('Content-Disposition')) ?? fallbackName
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  document.body.append(link)
+  link.click()
+  link.remove()
+  // Give the browser a moment to start the save before the memory is released.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+
+/** The file name from a Content-Disposition header (plain or RFC 5987 form). */
+export function fileNameFrom(header: string | null): string | null {
+  if (!header) return null
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(header)
+  if (encoded) return decodeURIComponent(encoded[1]!)
+  const plain = /filename="?([^";]+)"?/i.exec(header)
+  return plain ? plain[1]!.trim() : null
+}
+
+function toApiError(response: Response, payload: Record<string, unknown>, hadToken: boolean): ApiError {
+  if (response.status === 401 && hadToken) onUnauthorized()
+  return new ApiError(
+    response.status,
+    typeof payload.message === 'string' ? payload.message : `Request failed (${response.status})`,
+    (payload.errors as Record<string, string[]> | undefined) ?? {},
+    payload,
+  )
 }
 
 function toQueryString(query?: Record<string, string | number | undefined>): string {

@@ -22,3 +22,28 @@ export function formatDateTime(iso: string | null): string {
   if (!iso) return '—'
   return new Intl.DateTimeFormat(intlLocale(), { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso))
 }
+
+/** 312345600 -> "R$ 3,1 mi" (or "R$3.1M"): short labels for a chart scale. */
+export function formatCompactCents(cents: number): string {
+  return new Intl.NumberFormat(intlLocale(), {
+    style: 'currency',
+    currency: 'BRL',
+    notation: 'compact',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  }).format(cents / 100)
+}
+
+/**
+ * "2026-01" -> "jan/26" (short) or "janeiro de 2026" (long). Built from the parts with UTC,
+ * so the month never shifts with the browser's timezone.
+ */
+export function formatMonth(yearMonth: string, style: 'short' | 'long'): string {
+  const [year, month] = yearMonth.split('-').map(Number)
+  const date = new Date(Date.UTC(year!, month! - 1, 1))
+  if (style === 'long') {
+    return new Intl.DateTimeFormat(intlLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date)
+  }
+  const name = new Intl.DateTimeFormat(intlLocale(), { month: 'short', timeZone: 'UTC' }).format(date).replace('.', '')
+  return `${name}/${String(year).slice(2)}`
+}
