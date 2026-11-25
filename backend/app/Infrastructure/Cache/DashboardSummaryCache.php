@@ -33,6 +33,24 @@ final readonly class DashboardSummaryCache
         );
     }
 
+    /**
+     * Monthly totals, under the same version number: one invalidation refreshes both.
+     *
+     * @param  Closure(): array<string, FinancialSummary>  $compute
+     * @return array<string, FinancialSummary>
+     */
+    public function rememberMonthly(int $userId, Closure $compute): array
+    {
+        $key = sprintf('dashboard:monthly:%d:v%d', $userId, $this->version($userId));
+
+        $months = $this->cache->remember($key, self::TTL_SECONDS, fn () => array_map(
+            fn (FinancialSummary $month) => $month->toArray(),
+            $compute(),
+        ));
+
+        return array_map(FinancialSummary::fromArray(...), $months);
+    }
+
     public function invalidate(int $userId): void
     {
         $this->cache->increment($this->versionKey($userId));

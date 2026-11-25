@@ -6,5 +6,8 @@
     "The file has a header but no data rows.": "O arquivo tem cabeçalho, mas nenhuma linha de dados.",
     "The file is empty.": "O arquivo está vazio.",
     "The header has duplicated column names.": "O cabeçalho tem nomes de coluna repetidos.",
-    "This file was already uploaded (import #:id).": "Este arquivo já foi enviado (importação #:id)."
+    "This file was already uploaded (import #:id).": "Este arquivo já foi enviado (importação #:id).",
+    "content": "conteúdo",
+    "line": "linha",
+    "reasons": "motivos"
 }

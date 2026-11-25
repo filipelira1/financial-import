@@ -216,6 +216,84 @@
                 }
             }
         },
+        "/v1/dashboard/monthly": {
+            "get": {
+                "operationId": "v1.dashboard.monthly",
+                "summary": "Income, expense and balance per calendar month, oldest first, in cents.\nCached together with the summary and refreshed by the same imports",
+                "tags": [
+                    "Dashboard"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "month": {
+                                                        "type": "string"
+                                                    },
+                                                    "income_cents": {
+                                                        "type": "integer"
+                                                    },
+                                                    "expense_cents": {
+                                                        "type": "integer"
+                                                    },
+                                                    "balance_cents": {
+                                                        "type": "integer"
+                                                    },
+                                                    "transaction_count": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "month",
+                                                    "income_cents",
+                                                    "expense_cents",
+                                                    "balance_cents",
+                                                    "transaction_count"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/imports": {
             "get": {
                 "operationId": "v1.imports.index",
@@ -751,6 +829,89 @@
                 }
             }
         },
+        "/v1/imports/{import}/failures/export": {
+            "get": {
+                "operationId": "v1.imports.failures.export",
+                "summary": "Download the rejected lines as CSV: line number, reasons and the line as it was in the file,\nso the file can be fixed and sent again. Read 1,000 rows at a time, in line order",
+                "tags": [
+                    "Import"
+                ],
+                "parameters": [
+                    {
+                        "name": "import",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "text/csv; charset=UTF-8": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Transfer-Encoding": {
+                                "required": true,
+                                "schema": {
+                                    "type": "string",
+                                    "enum": [
+                                        "chunked"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "404": {
+                        "description": "Not found, or owned by another user",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/imports/{import}/retry": {
             "post": {
                 "operationId": "v1.imports.retry",
@@ -851,7 +1012,7 @@
         "/v1/transactions": {
             "get": {
                 "operationId": "v1.transactions.index",
-                "summary": "The user's transactions, newest first, optionally filtered by type and period",
+                "summary": "The user's transactions, newest first, optionally filtered by type, period and description",
                 "tags": [
                     "Transaction"
                 ],
@@ -877,6 +1038,17 @@
                         "schema": {
                             "type": "string",
                             "format": "date"
+                        }
+                    },
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 100
                         }
                     },
                     {
@@ -1064,6 +1236,118 @@
                     }
                 }
             }
+        },
+        "/v1/transactions/export": {
+            "get": {
+                "operationId": "v1.transactions.export",
+                "description": "Same columns and values as the import file (amounts in cents, type Receita or Despesa),\nso an exported file can be imported again. Streamed: memory stays flat whatever the size.",
+                "summary": "Download the transactions matching the same filters as the list, as CSV",
+                "tags": [
+                    "Transaction"
+                ],
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "schema": {
+                            "$ref": "#/components/schemas/TransactionType"
+                        }
+                    },
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 100
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 5,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "text/csv; charset=UTF-8": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Transfer-Encoding": {
+                                "required": true,
+                                "schema": {
+                                    "type": "string",
+                                    "enum": [
+                                        "chunked"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -1141,10 +1425,8 @@
                         "type": "string"
                     },
                     "errors": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
+                        "type": "string",
+                        "description": "Stored in English; answered in the request's language."
                     }
                 },
                 "required": [

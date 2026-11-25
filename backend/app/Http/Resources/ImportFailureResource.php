@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Localization\ReasonTranslator;
 use App\Models\ImportFailure;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -17,7 +18,8 @@ class ImportFailureResource extends JsonResource
         return [
             'line_number' => $this->line_number,
             'raw' => $this->raw,
-            'errors' => $this->errors,
+            // Stored in English; answered in the request's language.
+            'errors' => app(ReasonTranslator::class)->translateAll($this->errors),
         ];
     }
 }

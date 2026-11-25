@@ -4,7 +4,6 @@ namespace App\Application\Finance;
 
 use App\Models\Transaction;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 
 /**
@@ -21,9 +20,9 @@ final class ListTransactionsAction
      */
     public function execute(int $userId, TransactionFilters $filters, int $page = 1): LengthAwarePaginator
     {
-        $total = $this->filtered($userId, $filters)->toBase()->getCountForPagination();
+        $total = $filters->query($userId)->toBase()->getCountForPagination();
 
-        $pageIds = $this->filtered($userId, $filters)
+        $pageIds = $filters->query($userId)
             ->select('id')
             ->orderByDesc('occurred_on')
             ->orderByDesc('id')
@@ -39,17 +38,5 @@ final class ListTransactionsAction
         return (new Paginator($items, $total, $filters->perPage, $page, [
             'path' => Paginator::resolveCurrentPath(),
         ]))->withQueryString();
-    }
-
-    /**
-     * @return Builder<Transaction>
-     */
-    private function filtered(int $userId, TransactionFilters $filters): Builder
-    {
-        return Transaction::query()
-            ->where('user_id', $userId)
-            ->when($filters->type, fn (Builder $query, $type) => $query->where('type', $type))
-            ->when($filters->from, fn (Builder $query, $from) => $query->where('occurred_on', '>=', $from->format('Y-m-d')))
-            ->when($filters->to, fn (Builder $query, $to) => $query->where('occurred_on', '<=', $to->format('Y-m-d')));
     }
 }

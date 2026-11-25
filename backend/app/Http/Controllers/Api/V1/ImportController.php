@@ -5,14 +5,17 @@ namespace App\Http\Controllers\Api\V1;
 use App\Application\Import\RetryImportAction;
 use App\Application\Import\StartImportAction;
 use App\Http\Controllers\Controller;
+use App\Http\Localization\ReasonTranslator;
 use App\Http\Requests\Api\V1\StoreImportRequest;
 use App\Http\Resources\ImportFailureResource;
 use App\Http\Resources\ImportResource;
+use App\Http\Responses\CsvDownload;
 use App\Models\Import;
 use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ImportController extends Controller
 {
@@ -59,6 +62,29 @@ class ImportController extends Controller
     {
         return ImportFailureResource::collection(
             $this->ownedImport($request, $import)->failures()->orderBy('line_number')->paginate(50)
+        );
+    }
+
+    /**
+     * Download the rejected lines as CSV: line number, reasons and the line as it was in the file,
+     * so the file can be fixed and sent again. Read 1,000 rows at a time, in line order.
+     */
+    #[Response(404, 'Not found, or owned by another user', type: 'array{message: string}')]
+    public function exportFailures(Request $request, int $import, ReasonTranslator $reasons): StreamedResponse
+    {
+        $owned = $this->ownedImport($request, $import);
+
+        $rows = (function () use ($owned, $reasons) {
+            foreach ($owned->failures()->lazyById(1000, 'line_number') as $failure) {
+                yield [$failure->line_number, implode(' | ', $reasons->translateAll($failure->errors)), $failure->raw];
+            }
+        })();
+
+        return CsvDownload::make(
+            "import-{$owned->id}-rejected-lines.csv",
+            [__('line'), __('reasons'), __('content')],
+            $rows,
+            app()->getLocale(),
         );
     }
 

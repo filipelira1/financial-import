@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Domain\Finance\Contracts\TransactionRepository;
+use App\Http\Localization\ReasonTranslator;
 use App\Infrastructure\Persistence\DbTransactionRepository;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -21,7 +22,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function register(): void
     {
-        //
+        // One instance per request or job: the translation patterns are read once, and a
+        // long-running worker never keeps the locale of a previous request.
+        $this->app->scoped(ReasonTranslator::class);
     }
 
     public function boot(): void

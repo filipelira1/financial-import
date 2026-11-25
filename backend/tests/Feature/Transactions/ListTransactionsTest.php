@@ -100,3 +100,23 @@ it('validates the filters', function (string $query, string $field) {
     ['per_page=4', 'per_page'],
     ['page=0', 'page'],
 ]);
+
+it('searches the description, ignoring case, with % and _ taken literally', function () {
+    Transaction::factory()->for($this->user)->create(['description' => 'Assinatura Netflix']);
+    Transaction::factory()->for($this->user)->create(['description' => 'NETFLIX anual']);
+    Transaction::factory()->for($this->user)->create(['description' => 'Desconto 100% aplicado']);
+    Transaction::factory()->for($this->user)->create(['description' => 'Aluguel']);
+    Transaction::factory()->create(['description' => 'Netflix de outra pessoa']);
+
+    $this->getJson('/api/v1/transactions?q=netflix')->assertJsonPath('meta.total', 2);
+    $this->getJson('/api/v1/transactions?q=100%25')->assertJsonPath('meta.total', 1);
+    $this->getJson('/api/v1/transactions?q=%25')->assertJsonPath('meta.total', 1);
+    $this->getJson('/api/v1/transactions?q=_')->assertJsonPath('meta.total', 0);
+    expect($this->getJson('/api/v1/transactions?q=netflix&per_page=5')->json('links.first'))->toContain('q=netflix');
+});
+
+it('rejects a search longer than 100 characters', function () {
+    $this->getJson('/api/v1/transactions?q='.str_repeat('a', 101))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('q');
+});

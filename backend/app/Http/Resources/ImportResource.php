@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Localization\ReasonTranslator;
 use App\Models\Import;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -27,7 +28,7 @@ class ImportResource extends JsonResource
             'failed_rows' => $this->failed_rows,
             // 0-100. Unknown until the file has been read (total_rows is null while pending).
             'progress' => $this->progress($processed),
-            'failure_reason' => $this->failure_reason,
+            'failure_reason' => $this->failure_reason === null ? null : app(ReasonTranslator::class)->translate($this->failure_reason),
             'created_at' => $this->created_at?->toIso8601String(),
             'started_at' => $this->started_at?->toIso8601String(),
             'finished_at' => $this->finished_at?->toIso8601String(),

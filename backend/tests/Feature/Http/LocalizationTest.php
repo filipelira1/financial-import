@@ -69,3 +69,21 @@ it('keeps the messages stored by the queue in English, whatever the request lang
 
     expect(Import::sole()->failures()->sole()->errors)->toBe(['amount: expected a positive integer in cents, got "-5"']);
 });
+
+it('translates the stored rejection reasons in the answer, keeping English in the database', function () {
+    Queue::fake();
+    Sanctum::actingAs($this->user);
+    $import = Import::factory()->for($this->user)->create(['failure_reason' => 'No progress for 30 minutes. Retry the import to finish it; stored rows are not duplicated.']);
+    $import->failures()->create(['line_number' => 3, 'raw' => 'x', 'errors' => ['row: expected 4 columns, found 1', 'something new']]);
+
+    $this->getJson("/api/v1/imports/{$import->id}", ['Accept-Language' => 'pt-BR'])
+        ->assertJsonPath('data.failure_reason', 'Sem progresso há 30 minutos. Repita a importação para terminar; as linhas já gravadas não duplicam.');
+
+    $this->getJson("/api/v1/imports/{$import->id}/failures", ['Accept-Language' => 'pt-BR'])
+        ->assertJsonPath('data.0.errors', ['linha: esperadas 4 colunas, encontradas 1', 'something new']);
+
+    $this->getJson("/api/v1/imports/{$import->id}/failures")
+        ->assertJsonPath('data.0.errors.0', 'row: expected 4 columns, found 1');
+
+    expect($import->failures()->sole()->errors[0])->toBe('row: expected 4 columns, found 1');
+});

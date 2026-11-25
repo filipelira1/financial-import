@@ -2,6 +2,7 @@
 
 use App\Models\Import;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -42,4 +43,21 @@ function dirtyCsv(): string
         '2026-01-13,Bonus,25000,receita',
         '2026-01-14,Taxes,40000,DESPESA',
     ]);
+}
+
+function csvUpload(string $bytes, string $name = 'statement.csv'): UploadedFile
+{
+    return UploadedFile::fake()->createWithContent($name, $bytes);
+}
+
+/**
+ * A downloaded CSV body without its UTF-8 BOM, split into lines.
+ *
+ * @return list<string>
+ */
+function csvLines(string $body): array
+{
+    expect($body)->toStartWith("\xEF\xBB\xBF");
+
+    return explode("\n", rtrim(substr($body, 3), "\n"));
 }

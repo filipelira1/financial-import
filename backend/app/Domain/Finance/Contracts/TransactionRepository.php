@@ -21,4 +21,11 @@ interface TransactionRepository
      * Income, expense and count of all the user's transactions, in one query.
      */
     public function summaryFor(int $userId): FinancialSummary;
+
+    /**
+     * The same totals per calendar month ("YYYY-MM"), oldest first. Months without transactions are absent.
+     *
+     * @return array<string, FinancialSummary>
+     */
+    public function monthlySummaryFor(int $userId): array;
 }

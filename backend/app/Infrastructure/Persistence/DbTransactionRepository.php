@@ -60,4 +60,27 @@ final readonly class DbTransactionRepository implements TransactionRepository
 
         return new FinancialSummary((int) $row->income, (int) $row->expense, (int) $row->total);
     }
+
+    public function monthlySummaryFor(int $userId): array
+    {
+        // One grouped pass over the user's rows (about 15,000 in the provided file: a few ms).
+        // Served from the dashboard cache, so it runs once per import, not once per page view.
+        $rows = $this->db->table('transactions')
+            ->where('user_id', $userId)
+            ->selectRaw("DATE_FORMAT(occurred_on, '%Y-%m') AS month")
+            ->selectRaw('COALESCE(SUM(CASE WHEN type = ? THEN amount_cents ELSE 0 END), 0) AS income', [TransactionType::Income->value])
+            ->selectRaw('COALESCE(SUM(CASE WHEN type = ? THEN amount_cents ELSE 0 END), 0) AS expense', [TransactionType::Expense->value])
+            ->selectRaw('COUNT(*) AS total')
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get();
+
+        $months = [];
+
+        foreach ($rows as $row) {
+            $months[(string) $row->month] = new FinancialSummary((int) $row->income, (int) $row->expense, (int) $row->total);
+        }
+
+        return $months;
+    }
 }

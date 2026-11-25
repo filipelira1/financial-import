@@ -9,11 +9,6 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 
-function csvUpload(string $bytes, string $name = 'statement.csv'): UploadedFile
-{
-    return UploadedFile::fake()->createWithContent($name, $bytes);
-}
-
 beforeEach(function () {
     Storage::fake(config('imports.disk'));
     $this->user = User::factory()->create();
@@ -26,6 +21,7 @@ it('requires a token on every import endpoint', function (string $method, string
     ['POST', '/api/v1/imports'],
     ['GET', '/api/v1/imports/1'],
     ['GET', '/api/v1/imports/1/failures'],
+    ['GET', '/api/v1/imports/1/failures/export'],
     ['POST', '/api/v1/imports/1/retry'],
 ]);
 
@@ -160,7 +156,7 @@ describe('reading', function () {
         $this->getJson("/api/v1/imports/{$foreign->id}{$suffix}")
             ->assertNotFound()
             ->assertExactJson(['message' => 'Not found.']);
-    })->with(['', '/failures']);
+    })->with(['', '/failures', '/failures/export']);
 });
 
 describe('retry', function () {
