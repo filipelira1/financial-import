@@ -4,7 +4,7 @@
 #
 #   scripts/smoke-test.sh [file.csv]        (BASE_URL defaults to http://localhost:8090)
 #
-# Needs curl and python3. Expected totals are those of the provided 15,000-row file.
+# Needs curl and python3. Expected totals are those of the 15,000-row sample file.
 set -euo pipefail
 
 BASE="${BASE_URL:-http://localhost:8090}/api/v1"

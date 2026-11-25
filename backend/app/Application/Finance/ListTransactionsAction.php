@@ -11,7 +11,7 @@ use Illuminate\Pagination\LengthAwarePaginator as Paginator;
  *
  * Deferred join: OFFSET pagination makes MySQL walk and discard every row before the page.
  * Picking the page's ids from the covering index first, then reading only those rows,
- * keeps deep pages cheap (page 751 of the provided file: 68 ms -> 6 ms, EXPLAIN ANALYZE).
+ * keeps deep pages cheap (page 751 of the sample file: 68 ms -> 6 ms, EXPLAIN ANALYZE).
  */
 final class ListTransactionsAction
 {

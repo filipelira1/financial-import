@@ -63,7 +63,7 @@ final readonly class DbTransactionRepository implements TransactionRepository
 
     public function monthlySummaryFor(int $userId): array
     {
-        // One grouped pass over the user's rows (about 15,000 in the provided file: a few ms).
+        // One grouped pass over the user's rows (about 15,000 in the sample file: a few ms).
         // Served from the dashboard cache, so it runs once per import, not once per page view.
         $rows = $this->db->table('transactions')
             ->where('user_id', $userId)

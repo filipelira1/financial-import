@@ -6,10 +6,10 @@ use App\Jobs\ProcessImportJob;
 use App\Models\Transaction;
 
 /*
- * Acceptance test with the file provided in the assignment (15,000 rows).
+ * Acceptance test with the sample file (15,000 rows).
  * Expected totals were computed independently from the CSV, in cents.
  */
-it('imports the provided file with the expected totals', function () {
+it('imports the sample file with the expected totals', function () {
     $import = importFromCsv(file_get_contents(base_path('tests/fixtures/financial_transactions.csv')));
 
     ProcessImportJob::dispatch($import->id);

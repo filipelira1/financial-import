@@ -99,7 +99,7 @@ jobs:
       - name: Start the stack exactly as the README says
         run: HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up -d --build --wait --wait-timeout 600
 
-      - name: Import the provided CSV through the API and check the totals
+      - name: Import the sample CSV through the API and check the totals
         run: ./scripts/smoke-test.sh
 
       - name: Logs

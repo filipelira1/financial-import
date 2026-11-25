@@ -13,7 +13,7 @@ down: ## Stop the stack
 test: ## Run the test suite
 	$(COMPOSE) exec app php artisan test
 
-smoke: ## Import the provided CSV through the running API and check the totals
+smoke: ## Import the sample CSV through the running API and check the totals
 	./scripts/smoke-test.sh
 
 test-frontend: ## Run the frontend checks (type-check and Vitest) in a Node container
