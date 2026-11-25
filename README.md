@@ -6,7 +6,8 @@
 
 Sistema de importação e gestão financeira a partir de CSV. Uma **API REST em Laravel 13** recebe o
 arquivo, uma **fila** valida e grava os dados em blocos paralelos, e uma **SPA em Vue 3** mostra o
-progresso do envio, um painel em cache com receitas, despesas e saldo, e a lista paginada das transações.
+progresso do envio, um painel em cache com receitas, despesas, saldo e gráfico mensal, e a lista paginada das
+transações, com busca e exportação em CSV.
 
 | Painel depois de importar o arquivo fornecido | Importação de 200 mil linhas em andamento |
 |---|---|
@@ -39,6 +40,21 @@ progresso do envio, um painel em cache com receitas, despesas e saldo, e a lista
 | Extra: CI rodando os testes | [GitHub Actions](.github/workflows/ci.yml): backend, frontend, pilha completa | Selo no topo |
 | Extra: aviso quando o processamento termina | Polling inteligente (intervalo crescente, pausa com a aba escondida); evento `ImportFinished` pronto para WebSockets | `usePolling.test.ts` |
 | Extra: tudo em inglês | Código, commits e documentação da API em inglês; interface e mensagens da API em português ou inglês ([`i18n/`](frontend/src/i18n), [`SetLocaleFromHeader`](backend/app/Http/Middleware/SetLocaleFromHeader.php)) | [`i18n.test.ts`](frontend/src/i18n/i18n.test.ts), [`LocalizationTest`](backend/tests/Feature/Http/LocalizationTest.php) |
+
+## Além do pedido
+
+O enunciado pede importação, painel e lista. Estes cinco recursos completam o uso do dia a dia:
+
+| Recurso | Como funciona | Prova |
+|---|---|---|
+| **Vários arquivos de uma vez** | Arraste ou escolha até 10 CSVs: cada um vira uma importação na fila e o resultado aparece por arquivo (enviado, repetido, inválido). A lista de importações se atualiza sozinha até todas terminarem. | Conferido no navegador; limite igual ao de envios por minuto |
+| **Baixar as linhas recusadas** | Um CSV com linha, motivo e conteúdo original, para corrigir o arquivo e reenviar. Lido de mil em mil linhas, na ordem do arquivo. | [`FailureExportTest`](backend/tests/Feature/Exports/FailureExportTest.php) |
+| **Busca pela descrição** | Parte do texto, sem diferenciar maiúsculas nem acentos ("licenca" acha "Licença"). `%` e `_` digitados valem como texto, não como curinga. | `searches the description` em [`ListTransactionsTest`](backend/tests/Feature/Transactions/ListTransactionsTest.php) |
+| **Exportar a lista em CSV** | Os mesmos filtros da tela, no **mesmo formato da importação**: o arquivo exportado pode ser importado de novo. Gerado em fluxo, com paginação por chave (memória constante em qualquer tamanho). UTF-8 com BOM, `;` em português (Excel brasileiro) e `,` em inglês, e proteção contra fórmula em célula (CSV injection). | [`TransactionExportTest`](backend/tests/Feature/Exports/TransactionExportTest.php) |
+| **Gráfico mensal** | Receitas e despesas por mês, com o saldo do mês ao passar o mouse. Sem biblioteca de gráficos; cores conferidas para daltonismo e tabela equivalente para leitor de tela. Vem do mesmo cache do painel e é renovado pelos mesmos eventos. | [`MonthlySummaryTest`](backend/tests/Feature/Dashboard/MonthlySummaryTest.php) |
+
+Os motivos de recusa ficam gravados em inglês (o banco e os logs continuam pesquisáveis) e a API os traduz
+para o idioma pedido, na tela e no CSV baixado.
 
 ---
 
@@ -128,10 +144,13 @@ Todas as rotas ficam em `/api/v1`, respondem JSON e, exceto o login, exigem `Aut
 | `POST` | `/imports` | Envia um CSV (`multipart/form-data`, campo `file`). Responde **202** na hora com a importação; **409** se o mesmo arquivo já foi enviado; **422** para arquivo ou cabeçalho errado. |
 | `GET` | `/imports` | As importações do usuário, da mais nova para a mais antiga. |
 | `GET` | `/imports/{id}` | Situação e progresso (`progress` de 0 a 100, `is_finished`), para o polling. |
-| `GET` | `/imports/{id}/failures` | Linhas recusadas: número da linha, conteúdo e motivos. |
+| `GET` | `/imports/{id}/failures` | Linhas recusadas: número da linha, conteúdo e motivos (no idioma pedido). |
+| `GET` | `/imports/{id}/failures/export` | As mesmas linhas recusadas em CSV. |
 | `POST` | `/imports/{id}/retry` | Roda de novo uma importação que falhou (**409** se ela não falhou). Linhas já gravadas não duplicam. |
 | `GET` | `/dashboard/summary` | `income_cents`, `expense_cents`, `balance_cents`, `transaction_count` (em cache). |
-| `GET` | `/transactions` | Lista paginada, da mais nova para a mais antiga. Filtros: `type`, `from`, `to` (`YYYY-MM-DD`), `per_page` (5 a 100), `page`. |
+| `GET` | `/dashboard/monthly` | Os mesmos totais por mês (`YYYY-MM`), do mais antigo para o mais novo (em cache). |
+| `GET` | `/transactions` | Lista paginada, da mais nova para a mais antiga. Filtros: `type`, `from`, `to` (`YYYY-MM-DD`), `q` (parte da descrição), `per_page` (5 a 100), `page`. |
+| `GET` | `/transactions/export` | As transações dos mesmos filtros em CSV, no formato da importação. |
 
 A importação de outro usuário responde **404**, igual a uma que não existe. **Valores são centavos
 inteiros** (`115346` = R$ 1.153,46).
@@ -393,6 +412,8 @@ Rode com `docker compose exec mysql mysql -uapp -psecret financial_import`.
 - **Armazenamento compartilhado:** os workers dividem um volume local com o arquivo enviado. Com várias
   máquinas, seria S3 (ou outro armazenamento de objetos) com leitura por faixa de bytes em cada bloco.
 - **Atualização em tempo real:** hoje é polling. O Reverb transmitiria o `ImportFinished`.
+- **Busca em escala:** a busca por "contém" percorre as transações do usuário (o índice não serve a um curinga
+  no começo). Com milhões de linhas por usuário, o próximo passo é um índice `FULLTEXT`.
 - **Paginação em escala:** paginação por cursor em vez de `COUNT(*)` com número de página.
 - **Operação da fila:** uma única instância do Redis. O Horizon traria métricas e balanceamento por fila.
 

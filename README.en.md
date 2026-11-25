@@ -6,7 +6,8 @@
 
 A CSV import and financial management system. A **Laravel 13 REST API** receives the CSV, a
 **queue** validates it and stores it in parallel chunks, and a **Vue 3 SPA** shows the upload
-progress, a cached income/expense/balance dashboard and a paginated list of transactions.
+progress, a cached income/expense/balance dashboard with a monthly chart, and a paginated list of
+transactions with search and CSV export.
 
 | Dashboard after importing the provided file | An import of 200,000 rows in progress |
 |---|---|
@@ -35,6 +36,21 @@ progress, a cached income/expense/balance dashboard and a paginated list of tran
 | Extra: CI running the tests | [GitHub Actions](.github/workflows/ci.yml): backend, frontend, full stack | Badge above |
 | Extra: notice when processing ends | Smart polling (back-off, pauses with the tab hidden); `ImportFinished` event ready for WebSockets | `usePolling.test.ts` |
 | Extra: everything in English | Code, commits, API docs and this README in English (a Portuguese version is in [`README.md`](README.md)); the interface and API messages in Portuguese or English ([`i18n/`](frontend/src/i18n), [`SetLocaleFromHeader`](backend/app/Http/Middleware/SetLocaleFromHeader.php)) | [`i18n.test.ts`](frontend/src/i18n/i18n.test.ts), [`LocalizationTest`](backend/tests/Feature/Http/LocalizationTest.php) |
+
+## Beyond the brief
+
+The brief asks for import, dashboard and list. These five features round out day-to-day use:
+
+| Feature | How it works | Proof |
+|---|---|---|
+| **Several files at once** | Drop or pick up to 10 CSVs: each becomes its own queued import and the result is shown per file (sent, duplicate, invalid). The imports list refreshes itself until they have all finished. | Checked in the browser; the cap matches the uploads-per-minute limit |
+| **Download the rejected lines** | A CSV with line, reason and original content, to fix the file and send it again. Read 1,000 lines at a time, in file order. | [`FailureExportTest`](backend/tests/Feature/Exports/FailureExportTest.php) |
+| **Search by description** | Part of the text, ignoring case and accents ("licenca" finds "Licença"). A typed `%` or `_` is matched literally, not as a wildcard. | `searches the description` in [`ListTransactionsTest`](backend/tests/Feature/Transactions/ListTransactionsTest.php) |
+| **Export the list as CSV** | The same filters as the screen, in **the import format**: an exported file can be imported again. Streamed, with keyset pagination (flat memory at any size). UTF-8 with BOM, `;` in Portuguese (Brazilian Excel) and `,` in English, and formula neutralisation (CSV injection). | [`TransactionExportTest`](backend/tests/Feature/Exports/TransactionExportTest.php) |
+| **Monthly chart** | Income and expenses per month, with the month's balance on hover. No chart library; colours checked for colour blindness and an equivalent table for screen readers. Served from the dashboard cache and refreshed by the same events. | [`MonthlySummaryTest`](backend/tests/Feature/Dashboard/MonthlySummaryTest.php) |
+
+Rejection reasons are stored in English (the database and logs stay greppable) and the API translates them
+into the requested language, on screen and in the downloaded CSV.
 
 ---
 
@@ -124,10 +140,13 @@ All endpoints live under `/api/v1`, return JSON and, except login, need `Authori
 | `POST` | `/imports` | Uploads a CSV (`multipart/form-data`, field `file`). Answers **202** at once with the import; **409** if the same file was already uploaded; **422** for a wrong file or header. |
 | `GET` | `/imports` | The user's imports, newest first. |
 | `GET` | `/imports/{id}` | Status and progress (`progress` 0–100, `is_finished`), for polling. |
-| `GET` | `/imports/{id}/failures` | Rejected lines: line number, content and reasons. |
+| `GET` | `/imports/{id}/failures` | Rejected lines: line number, content and reasons (in the requested language). |
+| `GET` | `/imports/{id}/failures/export` | The same rejected lines as CSV. |
 | `POST` | `/imports/{id}/retry` | Runs a failed import again (**409** if it did not fail). Rows already stored are not duplicated. |
 | `GET` | `/dashboard/summary` | `income_cents`, `expense_cents`, `balance_cents`, `transaction_count` (cached). |
-| `GET` | `/transactions` | Paginated list, newest first. Filters: `type`, `from`, `to` (`YYYY-MM-DD`), `per_page` (5–100), `page`. |
+| `GET` | `/dashboard/monthly` | The same totals per month (`YYYY-MM`), oldest first (cached). |
+| `GET` | `/transactions` | Paginated list, newest first. Filters: `type`, `from`, `to` (`YYYY-MM-DD`), `q` (part of the description), `per_page` (5–100), `page`. |
+| `GET` | `/transactions/export` | The transactions matching the same filters as CSV, in the import format. |
 
 Another user's import answers **404**, exactly like one that does not exist. **Amounts are integer
 cents** (`115346` = R$ 1.153,46).
@@ -386,6 +405,8 @@ Run them with `docker compose exec mysql mysql -uapp -psecret financial_import`.
 
 ## Limitations and next steps
 
+- **Search at scale:** the "contains" search scans the user's transactions (an index cannot serve a leading
+  wildcard). With millions of rows per user, the next step is a `FULLTEXT` index.
 - **Duplicate rows:** the CSV has no transaction identifier, so two *different* files with overlapping rows
   both get imported. A fingerprint warning with user confirmation would be the next step.
 - **Shared storage:** workers share a local volume with the uploaded file. Across several hosts, this would
